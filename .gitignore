@@ -77,3 +77,11 @@ GTAGS
 *.orig
 *~
 \#*#
+
+/arch/arm/boot/compressed/vmlinux
+/include/linux/utsrelease.h
+/include/linux/compile.h
+/include/linux/bounds.h
+/include/linux/autoconf.h
+/include/asm-arm/
+/include/asm
