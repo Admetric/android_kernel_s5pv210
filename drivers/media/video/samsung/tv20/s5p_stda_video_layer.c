@@ -21,7 +21,7 @@
 
 #include "s5p_tv.h"
 
-#ifdef COFIG_TVOUT_DBG
+#ifdef CONFIG_TVOUT_DEBUG
 #define S5P_VLAYER_DEBUG  1
 #endif
 

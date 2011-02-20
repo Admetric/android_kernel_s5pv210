@@ -43,7 +43,6 @@ obj-$(CONFIG_S3C_DEV_USB_HOST)	+= dev-usb.o
 obj-$(CONFIG_S3C_DEV_USB_HSOTG)	+= dev-usb-hsotg.o
 obj-$(CONFIG_S3C_DEV_NAND)	+= dev-nand.o
 obj-$(CONFIG_BLK_DEV_IDE_S3C)   += dev-ide.o
-obj-$(CONFIG_SPI_S5PV210)        += dev-spi.o
 
 # DMA support
 

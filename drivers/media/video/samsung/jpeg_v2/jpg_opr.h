@@ -121,8 +121,6 @@ typedef struct {
 	UINT32			height;
 	UINT32			data_size;
 	UINT32			file_size;
-	//added for jpeg capture
-	UINT32			set_framebuf;
 } jpg_enc_proc_param;
 
 typedef struct {

@@ -110,12 +110,6 @@ extern int s3c2410_dma_enqueue(unsigned int channel, void *id,
 
 extern int s3c2410_dma_config(unsigned int channel, int xferunit);
 
-/*  s3c2410_dma_setswap
- *
- *  configure the swap capability of xfer
- */
-extern int s3c2410_dma_setswap(unsigned int channel, unsigned int bytes_swap);
-
 /* s3c2410_dma_devconfig
  *
  * configure the device we're talking to

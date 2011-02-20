@@ -832,48 +832,6 @@ config USB_G_PRINTER
 	  For more information, see Documentation/usb/gadget_printer.txt
 	  which includes sample code for accessing the device file.
 
-config USB_ANDROID
-	boolean "Android Gadget"
-	depends on SWITCH
-	help
-	  The Android gadget driver supports multiple USB functions.
-	  The functions can be configured via a board file and may be
-	  enabled and disabled dynamically.
-
-config USB_ANDROID_ACM
-	boolean "Android gadget ACM serial function"
-	depends on USB_ANDROID
-	help
-	  Provides ACM serial function for android gadget driver.
-
-config USB_ANDROID_ADB
-	boolean "Android gadget adb function"
-	depends on USB_ANDROID
-	help
-	  Provides adb function for android gadget driver.
-
-config USB_ANDROID_MASS_STORAGE
-	boolean "Android gadget mass storage function"
-	depends on USB_ANDROID && SWITCH
-	help
-	  Provides USB mass storage function for android gadget driver.
-
-config USB_ANDROID_RNDIS
-	boolean "Android gadget RNDIS ethernet function"
-	depends on USB_ANDROID
-	help
-	  Provides RNDIS ethernet function for android gadget driver.
-
-config USB_ANDROID_RNDIS_WCEIS
-        boolean "Use Windows Internet Sharing Class/SubClass/Protocol"
-        depends on USB_ANDROID_RNDIS
-        help
-         Causes the driver to look like a Windows-compatible Internet
-         Sharing device, so Windows auto-detects it.
-
-         If you enable this option, the device is no longer CDC ethernet
-         compatible.
-
 config USB_CDC_COMPOSITE
 	tristate "CDC Composite Device (Ethernet and ACM)"
 	depends on NET
@@ -894,18 +852,5 @@ config USB_CDC_COMPOSITE
 # - none yet
 
 endchoice
-config USB_GADGET_ANDROID_MAX_LUNS
-	int "Max Logical Numbers (1-5)"
-	depends on USB_ANDROID
-	range 1 5
-	default 1
-	help
-	  Enter how many removal disks will be supported.
 
-config USBCV_CH9_REMOTE_WAKEUP_TEST
-	boolean "Enable remote wakeup only for USBCV chapter9 test "
-	depends on USB_ANDROID
-	help
-	  Enable signalling remote wakeup, 200ms after suspend from Host.
-	  This is only for USBCV chapter9 test.
 endif # USB_GADGET

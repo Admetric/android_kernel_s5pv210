@@ -19,7 +19,6 @@
 #include <linux/videodev2_samsung.h>
 #include <media/v4l2-ioctl.h>
 #include <plat/fimc.h>
-#include <linux/clk.h>
 
 #include "fimc.h"
 
@@ -137,8 +136,6 @@ static int fimc_g_crop(struct file *filp, void *fh, struct v4l2_crop *a)
 
 	if (a->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 		ret = fimc_g_crop_capture(ctrl, a);
-	} else if (a->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
-		ret = fimc_g_crop_output(fh, a);
 	} else {
 		fimc_err("V4L2_BUF_TYPE_VIDEO_CAPTURE and "
 			"V4L2_BUF_TYPE_VIDEO_OUTPUT are only supported\n");
@@ -169,18 +166,11 @@ static int fimc_s_crop(struct file *filp, void *fh, struct v4l2_crop *a)
 static int fimc_streamon(struct file *filp, void *fh, enum v4l2_buf_type i)
 {
 	struct fimc_control *ctrl = ((struct fimc_prv_data *)fh)->ctrl;
-	struct s3c_platform_fimc *pdata;
 	int ret = -1;
 
-	pdata = to_fimc_plat(ctrl->dev);
-
 	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		if (pdata->clk_on)
-			pdata->clk_on(to_platform_device(ctrl->dev), ctrl->clk);
 		ret = fimc_streamon_capture(ctrl);
 	} else if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
-		if (pdata->clk_on)
-			pdata->clk_on(to_platform_device(ctrl->dev), ctrl->clk);
 		ret = fimc_streamon_output(fh);
 	} else {
 		fimc_err("V4L2_BUF_TYPE_VIDEO_CAPTURE and "
@@ -194,19 +184,12 @@ static int fimc_streamon(struct file *filp, void *fh, enum v4l2_buf_type i)
 static int fimc_streamoff(struct file *filp, void *fh, enum v4l2_buf_type i)
 {
 	struct fimc_control *ctrl = ((struct fimc_prv_data *)fh)->ctrl;
-	struct s3c_platform_fimc *pdata;
 	int ret = -1;
-
-	pdata = to_fimc_plat(ctrl->dev);
 
 	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 		ret = fimc_streamoff_capture(ctrl);
-		if (pdata->clk_off)
-			pdata->clk_off(to_platform_device(ctrl->dev), ctrl->clk);
 	} else if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
 		ret = fimc_streamoff_output(fh);
-		if (pdata->clk_off)
-			pdata->clk_off(to_platform_device(ctrl->dev), ctrl->clk);
 	} else {
 		fimc_err("V4L2_BUF_TYPE_VIDEO_CAPTURE and "
 			"V4L2_BUF_TYPE_VIDEO_OUTPUT are only supported\n");

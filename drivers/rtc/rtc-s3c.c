@@ -576,12 +576,8 @@ static void s3c_rtc_enable(struct platform_device *pdev, int en)
 
 	if (!en) {
 		tmp = readw(base + S3C2410_RTCCON);
-#ifdef CONFIG_HRT_RTC
-		writew(tmp & ~ (S3C2410_RTCCON_RTCEN), base + S3C2410_RTCCON);
-#else
 		writew(tmp & ~ (S3C2410_RTCCON_RTCEN |
 			S3C_RTCCON_TICEN), base + S3C2410_RTCCON);
-#endif
 	} else {
 		/* re-enable the device, and check it is ok */
 

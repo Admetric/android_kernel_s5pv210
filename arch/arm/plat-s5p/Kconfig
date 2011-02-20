@@ -31,7 +31,7 @@ config SYSTIMER_S5P
 	help
 	  Support System Timer for S5P Series
 
-config S5P_HIGH_RES_TIMERS
+config S5PC11X_HIGH_RES_TIMERS
         bool "HRtimer and Dynamic Tick support"
         select GENERIC_TIME
         select GENERIC_CLOCKEVENTS
@@ -42,7 +42,7 @@ config S5P_HIGH_RES_TIMERS
 	  
 choice
         prompt "Select HRT source timer"
-        depends on S5P_HIGH_RES_TIMERS
+        depends on S5PC11X_HIGH_RES_TIMERS
         default HRT_RTC
 
 #config HRT_PWM
@@ -105,10 +105,3 @@ config S5P_SETUP_MFC
 	default y
 	help
 	  Common setup code for MFC
-
-config S5P_LPAUDIO
-	bool "Support S5P Low Power(LP) Audio"
-	depends on (CPU_IDLE && PM && SND_S3C_I2SV2_SOC)
-	default y
-	help
-	  s5p low power audio enable / disable

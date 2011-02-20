@@ -27,9 +27,6 @@ static inline int s3c_pm_init(void)
 }
 #endif
 
-#define SLEEP_MODE 0
-#define IDLE2_MODE 1
-
 /* configuration for the IRQ mask over sleep */
 extern unsigned long s3c_irqwake_intmask;
 extern unsigned long s3c_irqwake_eintmask;

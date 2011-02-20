@@ -17,10 +17,6 @@
 #include <linux/wait.h>
 #include <linux/mutex.h>
 #include <linux/fb.h>
-#ifdef CONFIG_HAS_WAKELOCK
-#include <linux/wakelock.h>
-#include <linux/earlysuspend.h>
-#endif
 #include <plat/fb.h>
 #endif
 
@@ -197,7 +193,6 @@ struct s3cfb_window {
 	unsigned int		pseudo_pal[16];
 	struct			s3cfb_alpha alpha;
 	struct			s3cfb_chroma chroma;
-	int			power_state;
 };
 
 /*
@@ -224,17 +219,11 @@ struct s3cfb_global {
 
 	/* fimd */
 	int			enabled;
-	atomic_t		enabled_win;
 	int			dsi;
 	int			interlace;
 	enum s3cfb_output_t 	output;
 	enum s3cfb_rgb_mode_t	rgb_mode;
 	struct s3cfb_lcd 	*lcd;
-
-#ifdef CONFIG_HAS_WAKELOCK
-        struct early_suspend    early_suspend;
-        struct wake_lock        idle_lock;
-#endif
 };
 
 
@@ -260,20 +249,6 @@ struct s3cfb_user_chroma {
 	unsigned char	blue;
 };
 
-#if 1
-// added by jamie (2009.08.18)
-typedef struct {
-	unsigned int phy_start_addr;
-	unsigned int xres;		/* visible resolution*/
-	unsigned int yres;
-	unsigned int xres_virtual;	/* virtual resolution*/
-	unsigned int yres_virtual;
-	unsigned int xoffset;		/* offset from virtual to visible */
-	unsigned int yoffset;		/* resolution */
-	unsigned int lcd_offset_x;
-	unsigned int lcd_offset_y;
-} s3cfb_next_info_t;
-#endif
 
 /*
  * CUSTOM IOCTLS
@@ -297,11 +272,6 @@ typedef struct {
 #define S3CFB_SET_WIN_ADDR		_IOW('F', 308, unsigned long)
 #define S3CFB_SET_WIN_MEM		_IOW('F', 309, \
 						enum s3cfb_mem_owner_t)
-#define S3CFB_GET_LCD_ADDR	        _IOR('F', 310, int)
-#if 1
-// added by jamie (2009.08.18)
-#define S3CFB_GET_CURR_FB_INFO		_IOR ('F', 320, s3cfb_next_info_t)
-#endif
 
 /*
  * EXTERNS
@@ -337,12 +307,5 @@ extern int s3cfb_set_window_size(struct s3cfb_global *ctrl, int id);
 extern int s3cfb_set_buffer_address(struct s3cfb_global *ctrl, int id);
 extern int s3cfb_set_buffer_size(struct s3cfb_global *ctrl, int id);
 extern int s3cfb_set_chroma_key(struct s3cfb_global *ctrl, int id);
-
-#ifdef CONFIG_HAS_WAKELOCK
-#ifdef CONFIG_HAS_EARLYSUSPEND
-extern void s3cfb_early_suspend(struct early_suspend *h);
-extern void s3cfb_late_resume(struct early_suspend *h);
-#endif
-#endif
 
 #endif /* _S3CFB_H */

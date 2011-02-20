@@ -310,6 +310,7 @@ void s3c_csis_start(int lanes, int settle, int align, int width, int height, int
 
 	info("Samsung MIPI-CSI2 operation started\n");
 }
+EXPORT_SYMBOL(s3c_csis_start);
 
 void s3c_csis_stop(void)
 {
@@ -325,6 +326,7 @@ void s3c_csis_stop(void)
 
 	s3c_csis_clk_off(s3c_csis->dev);
 }
+EXPORT_SYMBOL(s3c_csis_stop);
 
 static irqreturn_t s3c_csis_irq(int irq, void *dev_id)
 {

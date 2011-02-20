@@ -80,21 +80,6 @@ static int s5pv210_pd_pwr_done(int ctrl)
 	return -ETIME;
 }
 
-static int s5pv210_pd_pwr_off(int ctrl)
-{
-	unsigned int cnt;
-
-	cnt = 10000;
-
-	do{
-		if (!(__raw_readl(S5P_BLK_PWR_STAT) & ctrl))
-			return 0;
-
-	}while(cnt-- > 0);
-
-	return -ETIME;
-}
-
 static int s5pv210_pd_ctrl(struct pd_domain *pd, int enable)
 {
 	struct power_domain *parent_p;
@@ -110,7 +95,7 @@ static int s5pv210_pd_ctrl(struct pd_domain *pd, int enable)
 	*/
 	if (enable == PD_ACTIVE) {
 		parent_p->usage++;
-		if (!(pd_status & parent_p->ctrlbit)) {
+		if (!(pd_status&parent_p->ctrlbit)) {
 			s5pv210_pd_clk_on(pd);
 			pd_status |= (parent_p->ctrlbit);
 			__raw_writel(pd_status, S5P_NORMAL_CFG);
@@ -119,14 +104,10 @@ static int s5pv210_pd_ctrl(struct pd_domain *pd, int enable)
 			s5pv210_pd_clk_off(pd);
 		}
 	} else if (enable == PD_INACTIVE) {
-		if(parent_p->usage)
-			parent_p->usage--;
-
+		parent_p->usage--;
 		if (parent_p->usage == 0) {
 			pd_status &= ~(parent_p->ctrlbit);
 			__raw_writel(pd_status, S5P_NORMAL_CFG);
-			if(s5pv210_pd_pwr_off(parent_p->ctrlbit))
-				return -ETIME;
 		}
 	}
 
@@ -312,48 +293,6 @@ static struct pd_domain init_pd[] = {
 		.clk_bit 	= (1<<16),
 		.enable		= s5pv210_pd_ctrl,
 		.parent_pd	= &pd_mfc,
-	}, {
-		.name		= "spdif_pd",
-		.clk_reg	= S5P_CLKGATE_IP3,
-		.clk_bit	= (1<<0),
-		.enable		= s5pv210_pd_ctrl,
-		.parent_pd	= &pd_audio,
-	}, {
-		.name		= "i2s0_pd",
-		.clk_reg	= S5P_CLKGATE_IP3,
-		.clk_bit	= (1<<4),
-		.enable		= s5pv210_pd_ctrl,
-		.parent_pd	= &pd_audio,
-	}, {
-		.name		= "i2s1_pd",
-		.clk_reg	= S5P_CLKGATE_IP3,
-		.clk_bit	= (1<<5),
-		.enable		= s5pv210_pd_ctrl,
-		.parent_pd	= &pd_audio,
-	}, {
-		.name		= "i2s2_pd",
-		.clk_reg	= S5P_CLKGATE_IP3,
-		.clk_bit	= (1<<6),
-		.enable		= s5pv210_pd_ctrl,
-		.parent_pd	= &pd_audio,
-	}, {
-		.name		= "pcm0_pd",
-		.clk_reg	= S5P_CLKGATE_IP3,
-		.clk_bit	= (1<<28),
-		.enable		= s5pv210_pd_ctrl,
-		.parent_pd	= &pd_audio,
-	}, {
-		.name		= "pcm1_pd",
-		.clk_reg	= S5P_CLKGATE_IP3,
-		.clk_bit	= (1<<29),
-		.enable		= s5pv210_pd_ctrl,
-		.parent_pd	= &pd_audio,
-	}, {
-		.name		= "pcm2_pd",
-		.clk_reg	= S5P_CLKGATE_IP3,
-		.clk_bit	= (1<<30),
-		.enable		= s5pv210_pd_ctrl,
-		.parent_pd	= &pd_audio,
 	},
 };
 
@@ -375,7 +314,6 @@ static void s5pv210_register_pds(void)
 
 	pd_p = init_pd;
 
-
 	for (liter = 0 ; liter < ARRAY_SIZE(init_pd) ; liter++, pd_p++) {
 		ret = s5pv210_register_pd(pd_p);
 
@@ -384,100 +322,41 @@ static void s5pv210_register_pds(void)
 				pd_p->name, ret);
 	}
 }
-
-int s5p_pwrctrl(void __iomem *reg, struct power_domain *pd, int enable)
-{
-	unsigned int ctrlbit = pd->ctrlbit;
-	u32 con;
-
-	spin_lock(&pd_lock);
-
-	con = __raw_readl(reg);
-	con = enable ? (con | ctrlbit) : (con & ~ctrlbit);
-	__raw_writel(con, reg);
-
-	if (enable)
-		while(!(readl(S5P_BLK_PWR_STAT) & ctrlbit));
-
-	spin_unlock(&pd_lock);
-}
-
-static int s5pv210_pwr_ctrl(struct power_domain *pd, int enable)
-{
-	return s5p_pwrctrl(S5P_NORMAL_CFG, pd, enable);
-}
-
 static int __init s5pv210_pd_init(void)
 {
 	printk(KERN_INFO "S5PV210 Power Domain API Enable\n");
 
 	s5pv210_register_pds();
 
+/* All Power Domain always on by temporary */
 #if 1
-	// The case of using pd_enable & pd_disable
-/*
-	s5pv210_pd_enable("dsim_pd");
-	s5pv210_pd_enable("g2d_pd");
-*/
-	s5pv210_pd_enable("g3d_pd");
-	s5pv210_pd_enable("fimd_pd");
-
-	s5pv210_pd_enable("mfc_pd");
-
-	s5pv210_pd_enable("fimc_pd");
+	s5pv210_pd_enable("camera_pd");
 	s5pv210_pd_enable("csis_pd");
 	s5pv210_pd_enable("jpeg_pd");
 	s5pv210_pd_enable("rotator_pd");
-
 	s5pv210_pd_enable("vp_pd");
 	s5pv210_pd_enable("mixer_pd");
 	s5pv210_pd_enable("tv_enc_pd");
 	s5pv210_pd_enable("hdmi_pd");
-
-	s5pv210_pd_enable("i2s0_pd");
-	s5pv210_pd_enable("i2s1_pd");
-	s5pv210_pd_enable("i2s2_pd");
-
-	s5pv210_pd_enable("pcm0_pd");
-	s5pv210_pd_enable("pcm1_pd");
-	s5pv210_pd_enable("pcm2_pd");
-
-	s5pv210_pd_enable("spdif_pd");
-/*
+	s5pv210_pd_enable("fimd_pd");
+	s5pv210_pd_enable("dsim_pd");
+	s5pv210_pd_enable("g2d_pd");
+	s5pv210_pd_enable("g3d_pd");
 	s5pv210_pd_enable("mfc_pd");
-	s5pv210_pd_disable("dsim_pd");
-	s5pv210_pd_disable("g2d_pd");
-*/
-	s5pv210_pd_disable("g3d_pd");
-	s5pv210_pd_disable("fimd_pd");
 
-	s5pv210_pd_disable("mfc_pd");
-
-	s5pv210_pd_disable("fimc_pd");
+	s5pv210_pd_disable("camera_pd");
 	s5pv210_pd_disable("csis_pd");
 	s5pv210_pd_disable("jpeg_pd");
 	s5pv210_pd_disable("rotator_pd");
-
 	s5pv210_pd_disable("vp_pd");
 	s5pv210_pd_disable("mixer_pd");
 	s5pv210_pd_disable("tv_enc_pd");
 	s5pv210_pd_disable("hdmi_pd");
-
-	s5pv210_pd_disable("i2s0_pd");
-	s5pv210_pd_disable("i2s1_pd");
-	s5pv210_pd_disable("i2s2_pd");
-
-	s5pv210_pd_disable("pcm0_pd");
-	s5pv210_pd_disable("pcm1_pd");
-	s5pv210_pd_disable("pcm2_pd");
-
-	/*s5pv210_pd_disable("spdif_pd");	leave on */
-#else
-	// The case of using the control function
-	s5pv210_pwr_ctrl(&pd_mfc, 0);
-	//s5pv210_pwr_ctrl(&pd_g3d, 0);
-	//s5pv210_pwr_ctrl(&pd_cam, 0);
-	//s5pv210_pwr_ctrl(&pd_tv,  0);
+	s5pv210_pd_disable("fimd_pd");
+	s5pv210_pd_disable("dsim_pd");
+	s5pv210_pd_disable("g2d_pd");
+	s5pv210_pd_disable("g3d_pd");
+	s5pv210_pd_disable("mfc_pd");
 #endif
 
 	return 0;

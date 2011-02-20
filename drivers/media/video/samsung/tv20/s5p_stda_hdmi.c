@@ -22,7 +22,7 @@
 #include <mach/map.h>
 #include <mach/regs-clock.h>
 
-#ifdef COFIG_TVOUT_DBG
+#ifdef CONFIG_TVOUT_DEBUG
 #define S5P_STDA_HDMI_DEBUG 1
 #endif
 

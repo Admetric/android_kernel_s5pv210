@@ -73,12 +73,11 @@ static struct map_desc s5pv210_iodesc[] __initdata = {
 		.length		= SZ_4K,
 		.type		= MT_DEVICE,
 	}, {
-		.virtual	= (unsigned long)S5P_VA_BUS_AXI_DSYS,
-		.pfn		= __phys_to_pfn(S5PV210_PA_BUS_AXI_DSYS),
+		.virtual	= (unsigned long)S3C_VA_WATCHDOG,
+		.pfn		= __phys_to_pfn(S5PV210_PA_WDT),
 		.length		= SZ_4K,
 		.type		= MT_DEVICE,
 	}
-
 };
 
 static void s5pv210_idle(void)

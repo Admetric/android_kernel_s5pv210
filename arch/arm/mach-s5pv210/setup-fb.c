@@ -24,9 +24,42 @@
 #include <linux/io.h>
 #include <mach/map.h>
 #include <mach/pd.h>
-#include <mach/gpio-bank.h>
 
 struct platform_device; /* don't need the contents */
+
+void s3cfb_cfg_gpio(struct platform_device *pdev)
+{
+	int i;
+
+	for (i = 0; i < 8; i++) {
+		s3c_gpio_cfgpin(S5PV210_GPF0(i), S3C_GPIO_SFN(2));
+		s3c_gpio_setpull(S5PV210_GPF0(i), S3C_GPIO_PULL_NONE);
+	}
+
+	for (i = 0; i < 8; i++) {
+		s3c_gpio_cfgpin(S5PV210_GPF1(i), S3C_GPIO_SFN(2));
+		s3c_gpio_setpull(S5PV210_GPF1(i), S3C_GPIO_PULL_NONE);
+	}
+
+	for (i = 0; i < 8; i++) {
+		s3c_gpio_cfgpin(S5PV210_GPF2(i), S3C_GPIO_SFN(2));
+		s3c_gpio_setpull(S5PV210_GPF2(i), S3C_GPIO_PULL_NONE);
+	}
+
+	for (i = 0; i < 4; i++) {
+		s3c_gpio_cfgpin(S5PV210_GPF3(i), S3C_GPIO_SFN(2));
+		s3c_gpio_setpull(S5PV210_GPF3(i), S3C_GPIO_PULL_NONE);
+	}
+
+	/* mDNIe SEL: why we shall write 0x2 ? */
+	writel(0x2, S5P_MDNIE_SEL);
+
+	/* drive strength to max */
+	writel(0xffffffff, S5PV210_GPF0_BASE + 0xc);
+	writel(0xffffffff, S5PV210_GPF1_BASE + 0xc);
+	writel(0xffffffff, S5PV210_GPF2_BASE + 0xc);
+	writel(0x000003ff, S5PV210_GPF3_BASE + 0xc);
+}
 
 int s3cfb_clk_on(struct platform_device *pdev, struct clk **s3cfb_clk)
 {
@@ -108,69 +141,10 @@ void s3cfb_get_clk_name(char *clk_name)
 {
 	strcpy(clk_name, "sclk_fimd");
 }
-
 #ifdef CONFIG_FB_S3C_LTE480WV
-void s3cfb_cfg_gpio(struct platform_device *pdev)
-{
-	int i;
-
-	for (i = 0; i < 8; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF0(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF0(i), S3C_GPIO_PULL_NONE);
-	}
-
-	for (i = 0; i < 8; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF1(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF1(i), S3C_GPIO_PULL_NONE);
-	}
-
-	for (i = 0; i < 8; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF2(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF2(i), S3C_GPIO_PULL_NONE);
-	}
-
-	for (i = 0; i < 4; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF3(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF3(i), S3C_GPIO_PULL_NONE);
-	}
-
-	/* mDNIe SEL: why we shall write 0x2 ? */
-	writel(0x2, S5P_MDNIE_SEL);
-
-	/* drive strength to max */
-	writel(0xffffffff, S5PV210_GPF0_BASE + 0xc);
-	writel(0xffffffff, S5PV210_GPF1_BASE + 0xc);
-	writel(0xffffffff, S5PV210_GPF2_BASE + 0xc);
-	writel(0x000000ff, S5PV210_GPF3_BASE + 0xc);
-}
-
-int s3cfb_backlight_onoff(struct platform_device *pdev, int onoff)
-{
-	int err;
-
-	err = gpio_request(S5PV210_GPD0(3), "GPD0");
-
-	if (err) {
-		printk(KERN_ERR "failed to request GPD0 for "
-			"lcd backlight control\n");
-		return err;
-	}
-
-	if (onoff) {
-		gpio_direction_output(S5PV210_GPD0(3), 1);
-		/* 2009.12.28 by icarus : added for PWM backlight */
-		s3c_gpio_cfgpin(S5PV210_GPD0(3), S5PV210_GPD_0_3_TOUT_3);
-
-	}
-	else {
-		gpio_direction_output(S5PV210_GPD0(3), 0);
-	}
-	gpio_free(S5PV210_GPD0(3));
-	return 0;
-}
-
 int s3cfb_backlight_on(struct platform_device *pdev)
 {
+#if !defined(CONFIG_BACKLIGHT_PWM)
 	int err;
 
 	err = gpio_request(S5PV210_GPD0(3), "GPD0");
@@ -182,33 +156,12 @@ int s3cfb_backlight_on(struct platform_device *pdev)
 	}
 
 	gpio_direction_output(S5PV210_GPD0(3), 1);
-
-	s3c_gpio_cfgpin(S5PV210_GPD0(3), S5PV210_GPD_0_3_TOUT_3);
-
-	gpio_free(S5PV210_GPD0(3));
-	return 0;
-}
-
-int s3cfb_backlight_off(struct platform_device *pdev)
-{
-#if defined(CONFIG_BACKLIGHT_PWM)
-	int err;
-
-	err = gpio_request(S5PV210_GPD0(3), "GPD0");
-
-	if (err) {
-		printk(KERN_ERR "failed to request GPD0 for "
-				"lcd backlight control\n");
-		return err;
-	}
-
-	gpio_direction_output(S5PV210_GPD0(3), 0);
 	gpio_free(S5PV210_GPD0(3));
 #endif
 	return 0;
 }
 
-int s3cfb_lcd_on(struct platform_device *pdev)
+int s3cfb_reset_lcd(struct platform_device *pdev)
 {
 	int err;
 
@@ -232,51 +185,7 @@ int s3cfb_lcd_on(struct platform_device *pdev)
 
 	return 0;
 }
-
-int s3cfb_lcd_off(struct platform_device *pdev)
-{
-	return 0;
-}
 #elif defined(CONFIG_FB_S3C_HT101HD1)
-void s3cfb_cfg_gpio(struct platform_device *pdev)
-{
-	int i;
-
-	for (i = 0; i < 8; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF0(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF0(i), S3C_GPIO_PULL_NONE);
-	}
-
-	for (i = 0; i < 8; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF1(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF1(i), S3C_GPIO_PULL_NONE);
-	}
-
-	for (i = 0; i < 8; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF2(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF2(i), S3C_GPIO_PULL_NONE);
-	}
-
-	for (i = 0; i < 4; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF3(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF3(i), S3C_GPIO_PULL_NONE);
-	}
-
-	/* mDNIe SEL: why we shall write 0x2 ? */
-	writel(0x2, S5P_MDNIE_SEL);
-
-	/* drive strength to max */
-	writel(0xffffffff, S5PV210_GPF0_BASE + 0xc);
-	writel(0xffffffff, S5PV210_GPF1_BASE + 0xc);
-	writel(0xffffffff, S5PV210_GPF2_BASE + 0xc);
-	writel(0x000000ff, S5PV210_GPF3_BASE + 0xc);
-}
-
-int s3cfb_backlight_onoff(struct platform_device *pdev, int onoff)
-{
-	return 0;
-}
-
 int s3cfb_backlight_on(struct platform_device *pdev)
 {
 	int err;
@@ -291,7 +200,7 @@ int s3cfb_backlight_on(struct platform_device *pdev)
 	err = gpio_request(S5PV210_GPB(2), "GPB");
 	if (err) {
 		printk(KERN_ERR "failed to request GPB for "
-				"lcd LED_EN control\n");
+			"lcd backlight control\n");
 		return err;
 	}
 
@@ -305,36 +214,7 @@ int s3cfb_backlight_on(struct platform_device *pdev)
 	return 0;
 }
 
-int s3cfb_backlight_off(struct platform_device *pdev)
-{
-#if !defined(CONFIG_BACKLIGHT_PWM)
-	int err;
-
-	err = gpio_request(S5PV210_GPD0(0), "GPD0");
-
-	if (err) {
-		printk(KERN_ERR "failed to request GPD0 for "
-				"lcd backlight control\n");
-		return err;
-	}
-
-	err = gpio_request(S5PV210_GPB(2), "GPB");
-	if (err) {
-		printk(KERN_ERR "failed to request GPB for "
-				"lcd LED_EN control\n");
-		return err;
-	}
-
-	gpio_direction_output(S5PV210_GPD0(3), 0);
-	gpio_direction_output(S5PV210_GPB(2), 0);
-
-	gpio_free(S5PV210_GPD0(0));
-	gpio_free(S5PV210_GPB(2));
-#endif
-	return 0;
-}
-
-int s3cfb_lcd_on(struct platform_device *pdev)
+int s3cfb_reset_lcd(struct platform_device *pdev)
 {
 	int err;
 
@@ -355,147 +235,13 @@ int s3cfb_lcd_on(struct platform_device *pdev)
 
 	return 0;
 }
-
-int s3cfb_lcd_off(struct platform_device *pdev)
-{
-	return 0;
-}
-#elif defined(CONFIG_FB_S3C_TL2796)
-void s3cfb_cfg_gpio(struct platform_device *pdev)
-{
-	int i;
-
-	for (i = 0; i < 8; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF0(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF0(i), S3C_GPIO_PULL_NONE);
-	}
-
-	for (i = 0; i < 8; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF1(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF1(i), S3C_GPIO_PULL_NONE);
-	}
-
-	for (i = 0; i < 8; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF2(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF2(i), S3C_GPIO_PULL_NONE);
-	}
-
-	for (i = 0; i < 4; i++) {
-		s3c_gpio_cfgpin(S5PV210_GPF3(i), S3C_GPIO_SFN(2));
-		s3c_gpio_setpull(S5PV210_GPF3(i), S3C_GPIO_PULL_NONE);
-	}
-
-	/* mDNIe SEL: why we shall write 0x2 ? */
-	writel(0x2, S5P_MDNIE_SEL);
-
-	/* drive strength to max */
-	writel(0xffffffff, S5P_VA_GPIO + 0x12c);
-	writel(0xffffffff, S5P_VA_GPIO + 0x14c);
-	writel(0xffffffff, S5P_VA_GPIO + 0x16c);
-	writel(0x000000ff, S5P_VA_GPIO + 0x18c);
-
-	s3c_gpio_cfgpin(S5PV210_GPB(4), S3C_GPIO_SFN(1));
-	s3c_gpio_cfgpin(S5PV210_GPB(5), S3C_GPIO_SFN(1));
-	s3c_gpio_cfgpin(S5PV210_GPB(6), S3C_GPIO_SFN(1));
-	s3c_gpio_cfgpin(S5PV210_GPB(7), S3C_GPIO_SFN(1));
-
-	s3c_gpio_setpull(S5PV210_GPB(4), S3C_GPIO_PULL_NONE);
-	s3c_gpio_setpull(S5PV210_GPB(5), S3C_GPIO_PULL_NONE);
-	s3c_gpio_setpull(S5PV210_GPB(6), S3C_GPIO_PULL_NONE);
-	s3c_gpio_setpull(S5PV210_GPB(7), S3C_GPIO_PULL_NONE);
-
-	gpio_request(S5PV210_GPH0(5), "GPH0");
-	gpio_direction_output(S5PV210_GPH0(5), 1);
-}
-
-int s3cfb_backlight_on(struct platform_device *pdev)
-{
-
-	int err;
-
-	err = gpio_request(S5PV210_GPD0(3), "GPD0");
-
-	if (err) {
-		printk(KERN_ERR "failed to request GPD0 for "
-			"lcd backlight control\n");
-		return err;
-	}
-
-	gpio_direction_output(S5PV210_GPD0(3), 1);
-	gpio_free(S5PV210_GPD0(3));
-
-	return 0;
-}
-
-int s3cfb_backlight_off(struct platform_device *pdev)
-{
-	return 0;
-}
-
-int s3cfb_backlight_onoff(struct platform_device *pdev, int onoff)
-{
-	return 0;
-}
-
-int s3cfb_lcd_on(struct platform_device *pdev)
-{
-
-	int err;
-
-	err = gpio_request(S5PV210_GPH0(6), "GPH0");
-	if (err) {
-		printk(KERN_ERR "failed to request GPH0 for "
-			"lcd reset control\n");
-		return err;
-	}
-
-	gpio_direction_output(S5PV210_GPH0(6), 1);
-	mdelay(100);
-
-	gpio_set_value(S5PV210_GPH0(6), 0);
-	mdelay(10);
-
-	gpio_set_value(S5PV210_GPH0(6), 1);
-	mdelay(10);
-
-	gpio_free(S5PV210_GPH0(6));
-
-
-	return 0;
-}
-
-int s3cfb_lcd_off(struct platform_device *pdev)
-{
-	return 0;
-}
-
 #else
-void s3cfb_cfg_gpio(struct platform_device *pdev)
-{
-	return 0;
-}
-
-int s3cfb_backlight_onoff(struct platform_device *pdev, int onoff)
-{
-	return 0;
-}
-
 int s3cfb_backlight_on(struct platform_device *pdev)
 {
 	return 0;
 }
 
-int s3cfb_backlight_off(struct platform_device *pdev)
-{
-	return 0;
-}
-
-int s3cfb_lcd_on(struct platform_device *pdev)
-{
-	return 0;
-}
-
-int s3cfb_lcd_off(struct platform_device *pdev)
+int s3cfb_reset_lcd(struct platform_device *pdev)
 {
 	return 0;
 }

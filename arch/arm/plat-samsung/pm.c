@@ -32,15 +32,6 @@
 #include <plat/pm.h>
 #include <mach/pm-core.h>
 
-#define USE_DMA_ALLOC
-
-#ifdef USE_DMA_ALLOC
-#include <linux/dma-mapping.h>
-
-static unsigned long *regs_save;
-static dma_addr_t phy_regs_save;
-#endif /* USE_DMA_ALLOC */
-
 /* for external use */
 
 unsigned long s3c_pm_flags;
@@ -143,7 +134,7 @@ static void s3c_pm_restore_uarts(void) { }
 /* The IRQ ext-int code goes here, it is too small to currently bother
  * with its own file. */
 
-unsigned long s3c_irqwake_intmask	= 0xffffffddL;
+unsigned long s3c_irqwake_intmask	= 0xffffffffL;
 unsigned long s3c_irqwake_eintmask	= 0xffffffffL;
 
 int s3c_irqext_wake(unsigned int irqno, unsigned int state)
@@ -258,10 +249,7 @@ static int s3c_pm_begin(suspend_state_t state)
 
 static int s3c_pm_enter(suspend_state_t state)
 {
-#ifndef USE_DMA_ALLOC
 	static unsigned long regs_save[16];
-#endif /* !USE_DMA_ALLOC */
-	unsigned int tmp;
 
 	/* ensure the debug is initialised (if enabled) */
 
@@ -288,14 +276,7 @@ static int s3c_pm_enter(suspend_state_t state)
 
 	/* store the physical address of the register recovery block */
 
-#ifndef USE_DMA_ALLOC
 	s3c_sleep_save_phys = virt_to_phys(regs_save);
-#else
-	__raw_writel(phy_regs_save, S5P_INFORM2);
-#endif /* !USE_DMA_ALLOC */
-
-	/* set flag for sleep mode idle2 flag is also reserved */
-	__raw_writel(SLEEP_MODE, S5P_INFORM1);
 
 	S3C_PMDBG("s3c_sleep_save_phys=0x%08lx\n", s3c_sleep_save_phys);
 
@@ -310,7 +291,7 @@ static int s3c_pm_enter(suspend_state_t state)
 	s3c_pm_configure_extint();
 
 	S3C_PMDBG("sleep: irq wakeup masks: %08lx,%08lx\n",
-		s3c_irqwake_intmask, s3c_irqwake_eintmask);
+	    s3c_irqwake_intmask, s3c_irqwake_eintmask);
 
 	s3c_pm_arch_prepare_irqs();
 
@@ -402,14 +383,6 @@ static struct platform_suspend_ops s3c_pm_ops = {
 int __init s3c_pm_init(void)
 {
 	printk("S3C Power Management, Copyright 2004 Simtec Electronics\n");
-
-#ifdef USE_DMA_ALLOC
-	regs_save = dma_alloc_coherent(NULL, 4096, &phy_regs_save, GFP_KERNEL);
-	if (regs_save == NULL) {
-		printk(KERN_ERR "DMA alloc error\n");
-		return -1;
-	}
-#endif /* USE_DMA_ALLOC */
 
 	suspend_set_ops(&s3c_pm_ops);
 	return 0;

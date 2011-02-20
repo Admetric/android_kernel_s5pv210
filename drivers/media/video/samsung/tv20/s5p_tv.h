@@ -47,8 +47,6 @@
 
 #define USE_VMIXER_INTERRUPT		1
 
-#define AVI_SAME_WITH_PICTURE_AR	(0x1<<3)
-
 #define AVI_RGB_IF			(0x0<<5)
 #define AVI_YCBCR444_IF			(0x2<<5)
 
@@ -548,7 +546,6 @@ struct s5p_tv_status {
 	bool hdcp_en;
 	enum s5p_hdmi_audio_type hdmi_audio_type;
 	bool hpd_status;
-	bool suspend_status;
 
 	/* TVOUT_SET_LAYER_ENABLE/DISABLE */
 	bool vp_layer_enable;
@@ -750,7 +747,7 @@ void __s5p_set_hpd_detection(u32 detection_type, bool hdcp_enabled,
 		struct i2c_client *client);
 
 #ifdef CONFIG_CPU_S5PC100
-bool __s5p_start_hdcp(void);
+bool __s5p_start_hdcp(struct i2c_client *ddc_port);
 void __s5p_stop_hdcp(void);
 void __s5p_hdcp_reset(void);
 #endif
@@ -776,7 +773,7 @@ enum s5p_tv_hdmi_err __s5p_hdmi_audio_init(
 	u32 sample_rate, u32 bits, u32 frame_size_code);
 enum s5p_tv_hdmi_err __s5p_hdmi_video_init_display_mode(
 	enum s5p_tv_disp_mode disp_mode,
-	enum s5p_tv_o_mode out_mode, u8 *avidata);
+	enum s5p_tv_o_mode out_mode);
 void __s5p_hdmi_video_init_bluescreen(bool en, u8 cb, u8 y_g, u8 cr_r);
 void __s5p_hdmi_video_init_color_range(u8 y_min, u8 y_max, u8 c_min, u8 c_max);
 enum s5p_tv_hdmi_err __s5p_hdmi_video_init_csc(
@@ -1063,7 +1060,7 @@ extern int s5ptvfb_draw_logo(struct fb_info *fb);
 extern void s5ptvfb_set_lcd_info(struct s5p_tv_status *ctrl);
 extern int s5ptvfb_display_on(struct s5p_tv_status *ctrl);
 extern int s5p_hpd_get_state(void);
-extern void s5p_handle_cable(void);
+extern void s5p_tv_kobject_uevent(void);
 
 #define S5PTVFB_POWER_OFF	_IOW('F', 217, u32)
 #define S5PTVFB_POWER_ON	_IOW('F', 218, u32)
@@ -1072,19 +1069,8 @@ extern void s5p_handle_cable(void);
 #define S5PTVFB_SET_WIN_OFF	_IOW('F', 221, u32)
 
 extern int s5p_tv_clk_gate(bool on);
-extern int s5p_hdcp_is_reset(void);
 extern int tv_phy_power(bool on);
 extern int s5ptvfb_unmap_video_memory(struct fb_info *fb);
 
 extern struct s5p_tv_status s5ptv_status;
 extern bool _s5p_tv_if_set_disp(void);
-extern int s5p_hdcp_encrypt_stop(bool on);
-extern int s5p_hdmi_set_dvi(bool en);
-extern int s5p_hdmi_set_mute(bool en);
-extern int s5p_hdmi_get_mute(void);
-extern int s5p_hdmi_audio_enable(bool en);
-extern void s5p_hdmi_set_audio(bool en);
-extern void s5p_hdmi_mute_en(bool en);
-extern bool __s5p_start_hdcp(void);
-extern bool __s5p_stop_hdcp(void);
-

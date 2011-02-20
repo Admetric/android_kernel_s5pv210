@@ -41,9 +41,6 @@
 				printk("\tS5P_LPMP_MODE_SEL : %x\n", readl(S5P_LPMP_MODE_SEL));	\
 			} while (0)
 
-#define S5P_IISLVLINTMASK       (0xf<<20)
-#define LP_BUFSIZE		(64 * 1024)
-
 static const struct snd_pcm_hardware s3c_idma_hardware = {
 	.info = SNDRV_PCM_INFO_INTERLEAVED |
 		    SNDRV_PCM_INFO_BLOCK_TRANSFER |
@@ -60,21 +57,16 @@ static const struct snd_pcm_hardware s3c_idma_hardware = {
 	.channels_min = 2,
 	.channels_max = 2,
 	.buffer_bytes_max = MAX_LP_BUFF,
-	.period_bytes_min = 128,
-	.period_bytes_max = 16 * 1024,
-	.periods_min = 2,
-	.periods_max = 128,
+	.period_bytes_min = LP_DMA_PERIOD,
+	.period_bytes_max = LP_DMA_PERIOD,
+	.periods_min = 1,
+	.periods_max = 2,
 	.fifo_size = 64,
 };
 
 struct lpam_i2s_pdata {
-	spinlock_t 	lock;
-	int 		state;
-	dma_addr_t	start;
-	dma_addr_t	pos;
-	dma_addr_t	end;
-	dma_addr_t	period;
-
+	spinlock_t lock;
+	int state;
 };
 
 	/********************
@@ -82,23 +74,15 @@ struct lpam_i2s_pdata {
 	 ********************/
 static struct s3c_idma_info {
 	void __iomem  *regs;
-	unsigned int   dma_prd;
-	unsigned int   dma_end;
-	unsigned int   period_val;
+	unsigned      dma_prd;
 	spinlock_t    lock;
 	void          *token;
 	void (*cb)(void *dt, int bytes_xfer);
 } s3c_idma;
 
-/* s5p_i2s_is_clk_enabled() is from s3c64xx_i2s.c */
-extern int s5p_i2s_is_clk_enabled(void);
-
-void s3c_idma_getpos(dma_addr_t *src)
+static void s3c_idma_getpos(dma_addr_t *src)
 {
-	if (s5p_i2s_is_clk_enabled())
-		*src = LP_TXBUFF_ADDR + (readl(s3c_idma.regs + S5P_IISTRNCNT) & 0xffffff) * 4;
-	else
-		*src = LP_TXBUFF_ADDR + 0x2000;	/* Report 0x2000, when audio clk is gated. */
+	*src = LP_TXBUFF_ADDR + (readl(s3c_idma.regs + S5P_IISTRNCNT) & 0xffffff) * 4;
 }
 
 static int s3c_idma_enqueue(void *token)
@@ -111,33 +95,20 @@ static int s3c_idma_enqueue(void *token)
 
 	pr_debug("%s: %x@%x\n", __func__, MAX_LP_BUFF, LP_TXBUFF_ADDR);
 
-	/* Internal DMA Level0 Interrupt Address */
-	val = LP_TXBUFF_ADDR;
-	writel(val, s3c_idma.regs + S5P_IISADDR3);
-
-	val += s3c_idma.dma_prd;
+	val = LP_TXBUFF_ADDR + s3c_idma.dma_prd;
 	writel(val, s3c_idma.regs + S5P_IISADDR0);
 
-	val += s3c_idma.dma_prd;
-	writel(val, s3c_idma.regs + S5P_IISADDR1);
-
-	val += s3c_idma.dma_prd;
-	writel(val, s3c_idma.regs + S5P_IISADDR2);
-
-	/* Start address0 of I2S internal DMA operation. */
-	val = readl(s3c_idma.regs + S5P_IISSTR);
 	val = LP_TXBUFF_ADDR;
 	writel(val, s3c_idma.regs + S5P_IISSTR);
 
-	/*
-	 * Transfer block size for I2S internal DMA.
-	 * Should decide transfer size before start dma operation
-	 */
 	val = readl(s3c_idma.regs + S5P_IISSIZE);
 	val &= ~(S5P_IISSIZE_TRNMSK << S5P_IISSIZE_SHIFT);
-
-	val |= ((((s3c_idma.dma_end & 0x1ffff) >> 2) & S5P_IISSIZE_TRNMSK) << S5P_IISSIZE_SHIFT);
+	val |= (((MAX_LP_BUFF >> 2) & S5P_IISSIZE_TRNMSK) << S5P_IISSIZE_SHIFT);
 	writel(val, s3c_idma.regs + S5P_IISSIZE);
+
+	val = readl(s3c_idma.regs + S5P_IISAHB);
+	val |= S5P_IISAHB_INTENLVL0;
+	writel(val, s3c_idma.regs + S5P_IISAHB);
 
 	return 0;
 }
@@ -159,22 +130,10 @@ static void s3c_idma_ctrl(int op)
 	spin_lock(&s3c_idma.lock);
 
 	val = readl(s3c_idma.regs + S5P_IISAHB);
+	val &= ~(S5P_IISAHB_INTENLVL0 | S5P_IISAHB_DMAEN);
 
-	switch (op) {
-		case LPAM_DMA_START:
-			val &= ~S5P_IISAHB_INTENLVL3;
-			val |= S5P_IISAHB_INTENLVL0 | S5P_IISAHB_INTENLVL1 | S5P_IISAHB_INTENLVL2 | S5P_IISAHB_DMAEN;
-			break;
-
-		case LPAM_DMA_STOP:
-			/* Disable LVL Interrupt and DMA Operation */
-			val &= ~(S5P_IISAHB_INTENLVL0 | S5P_IISAHB_INTENLVL1 | S5P_IISAHB_INTENLVL2 | S5P_IISAHB_INTENLVL3 | S5P_IISAHB_DMAEN);
-			break;
-
-		default:
-			spin_unlock(&s3c_idma.lock);
-			return;
-	}
+	if (op == LPAM_DMA_START)
+		val |= S5P_IISAHB_INTENLVL0 | S5P_IISAHB_DMAEN;
 
 	writel(val, s3c_idma.regs + S5P_IISAHB);
 
@@ -188,12 +147,6 @@ static void s3c_idma_done(void *id, int bytes_xfer)
 
 	pr_debug("%s:%d\n", __func__, __LINE__);
 
-#if 0
-	/* For size of transferred data  */
-    prtd->pos += bytes_xfer;
-    if (prtd->pos >= prtd->end)
-            prtd->pos = prtd->start;
-#endif
 	if (prtd && (prtd->state & ST_RUNNING))
 		snd_pcm_period_elapsed(substream);
 	else
@@ -204,30 +157,24 @@ static int s3c_idma_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct lpam_i2s_pdata *prtd = substream->runtime->private_data;
-	unsigned long idma_totbytes;
 
 	pr_debug("Entered %s\n", __func__);
 
-	idma_totbytes = params_buffer_bytes(params);
-	prtd->end = LP_TXBUFF_ADDR + idma_totbytes;
-	prtd->period = params_periods(params);
-	s3c_idma.dma_end    = prtd->end;
-	s3c_idma.period_val = prtd->period;
+	if (params_buffer_bytes(params) !=
+				s3c_idma_hardware.buffer_bytes_max) {
+		pr_debug("Use full buffer in lowpower playback mode!");
+		return -EINVAL;
+	}
 
 	snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
-	memset(runtime->dma_area, 0, LP_BUFSIZE);
-
-	runtime->dma_bytes = idma_totbytes;
+	runtime->dma_bytes = params_buffer_bytes(params);
 
 	s3c_idma_setcallbk(s3c_idma_done, params_period_bytes(params));
+	s3c_idma_enqueue((void *)substream);
 
-	prtd->start = runtime->dma_addr;
-	prtd->pos = prtd->start;
-	prtd->end = prtd->start + idma_totbytes;
-
-	printk("DmaAddr=@%x Total=%lubytes PrdSz=%u #Prds=%u\n",
-			prtd->start, idma_totbytes, params_period_bytes(params), prtd->period);
+	pr_debug("DmaAddr=@%x Total=0x%xbytes PrdSz=0x%x #Prds=%u\n",
+			runtime->dma_addr, runtime->dma_bytes,
+			params_period_bytes(params), runtime->hw.periods_min);
 
 	return 0;
 }
@@ -243,15 +190,10 @@ static int s3c_idma_hw_free(struct snd_pcm_substream *substream)
 
 static int s3c_idma_prepare(struct snd_pcm_substream *substream)
 {
-	struct lpam_i2s_pdata *prtd = substream->runtime->private_data;
-
 	pr_debug("Entered %s\n", __func__);
-
-	prtd->pos = prtd->start;
 
 	/* flush the DMA channel */
 	s3c_idma_ctrl(LPAM_DMA_STOP);
-	s3c_idma_enqueue((void *)substream);
 
 	return 0;
 }
@@ -267,6 +209,9 @@ static int s3c_idma_trigger(struct snd_pcm_substream *substream, int cmd)
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_RESUME:
+		prtd->state |= ST_RUNNING;
+		break;
+
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		prtd->state |= ST_RUNNING;
@@ -274,6 +219,9 @@ static int s3c_idma_trigger(struct snd_pcm_substream *substream, int cmd)
 		break;
 
 	case SNDRV_PCM_TRIGGER_SUSPEND:
+		prtd->state &= ~ST_RUNNING;
+		break;
+
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		prtd->state &= ~ST_RUNNING;
@@ -301,21 +249,15 @@ static snd_pcm_uframes_t
 	unsigned long res;
 
 	spin_lock(&prtd->lock);
-#if 1
+
 	dst = dma->dma_addr;
 	s3c_idma_getpos(&src);
+
 	res = src - runtime->dma_addr;
-#else
-	res = prtd->pos - prtd->start;
-#endif
+
 	spin_unlock(&prtd->lock);
 
-
-	/* By Jung */
-	if (res >= snd_pcm_lib_buffer_bytes(substream)) {
-		if (res == snd_pcm_lib_buffer_bytes(substream))
-			res = 0;
-	}
+	pr_debug("Pointer %x %x\n", src, dst);
 
 	return bytes_to_frames(substream->runtime, res);
 }
@@ -346,9 +288,9 @@ static irqreturn_t s3c_iis_irq(int irqno, void *dev_id)
 	u32 iiscon, iisahb, val;
 
 	/* dump_i2s(); */
+
 	iisahb  = readl(s3c_idma.regs + S5P_IISAHB);
 	iiscon  = readl(s3c_idma.regs + S3C2412_IISCON);
-
 	if (iiscon & S5P_IISCON_FTXSURSTAT) {
 		iiscon |= S5P_IISCON_FTXURSTATUS;
 		writel(iiscon, s3c_idma.regs + S3C2412_IISCON);
@@ -362,29 +304,28 @@ static irqreturn_t s3c_iis_irq(int irqno, void *dev_id)
 		pr_debug("TX_P underrun interrupt IISCON = 0x%08x\n", readl(s3c_idma.regs + S3C2412_IISCON));
 	}
 
-	/* Check internal DMA level interrupt. */
-	if (iisahb & S5P_IISAHB_LVL0INT) {
-		val = S5P_IISAHB_CLRLVL0;
-		val |= S5P_IISAHB_INTENLVL3;
-	} 
-	else if (iisahb & S5P_IISAHB_LVL1INT) 
-		val = S5P_IISAHB_CLRLVL1;
-	else if (iisahb & S5P_IISAHB_LVL2INT) 
-		val = S5P_IISAHB_CLRLVL2;
-	else if (iisahb & S5P_IISAHB_LVL3INT) 
-		val = S5P_IISAHB_CLRLVL3;
-	else
-		val = 0;
-
+	val = ((iisahb & S5P_IISAHB_LVL0INT) ? S5P_IISAHB_CLRLVL0 : 0);
 	if (val) {
 		iisahb |= val;
+		iisahb |= S5P_IISAHB_INTENLVL0;
 		writel(iisahb, s3c_idma.regs + S5P_IISAHB);
 
-		/* Finished dma transfer ? */
-		if (iisahb & S5P_IISLVLINTMASK) {
-			if (s3c_idma.cb) {
-				s3c_idma.cb(s3c_idma.token, s3c_idma.dma_prd);
-			}
+		if (iisahb & S5P_IISAHB_LVL0INT) {
+			val = readl(s3c_idma.regs + S5P_IISADDR0) - LP_TXBUFF_ADDR; /* current offset */
+			val += s3c_idma.dma_prd; /* Length before next Lvl0 Intr */
+			val %= MAX_LP_BUFF; /* Round off at boundary */
+			writel(LP_TXBUFF_ADDR + val, s3c_idma.regs + S5P_IISADDR0); /* Update start address */
+		}
+
+		iisahb = readl(s3c_idma.regs + S5P_IISAHB);
+		iisahb |= S5P_IISAHB_DMAEN;
+		writel(iisahb, s3c_idma.regs + S5P_IISAHB);
+
+		/* Keep callback in the end */
+		if (s3c_idma.cb) {
+		   val = (iisahb & S5P_IISAHB_LVL0INT) ?
+				s3c_idma.dma_prd : MAX_LP_BUFF;
+		   s3c_idma.cb(s3c_idma.token, val);
 		}
 	}
 
@@ -482,9 +423,9 @@ static int s3c_idma_preallocate_buffer(struct snd_pcm *pcm, int stream)
 	buf->addr = LP_TXBUFF_ADDR;
 	buf->bytes = s3c_idma_hardware.buffer_bytes_max;
 	buf->area = (unsigned char *)ioremap(buf->addr, buf->bytes);
-	printk("%s:  VA-%p  PA-%X  %ubytes\n",
-			__func__, buf->area, buf->addr, buf->bytes);
 
+	pr_debug("Preallocate buffer:  VA-%p  PA-%X  %ubytes\n",
+			buf->area, buf->addr, buf->bytes);
 	return 0;
 }
 

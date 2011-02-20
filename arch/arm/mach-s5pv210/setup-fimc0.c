@@ -23,7 +23,6 @@
 #include <mach/regs-gpio.h>
 #include <mach/map.h>
 #include <mach/pd.h>
-#include <plat/regs-fimc.h>
 
 struct platform_device; /* don't need the contents */
 
@@ -56,7 +55,7 @@ void s3c_fimc0_cfg_gpio(struct platform_device *pdev)
 	/* note : driver strength to max is unnecessary */
 }
 
-int s3c_fimc_clk_on(struct platform_device *pdev, struct clk *clk)
+int s3c_fimc_clk_on(struct platform_device *pdev, struct clk **clk)
 {
 	struct clk *sclk_fimc_lclk = NULL;
 	struct clk *mout_fimc_lclk = NULL;
@@ -85,7 +84,7 @@ int s3c_fimc_clk_on(struct platform_device *pdev, struct clk *clk)
 	clk_set_rate(sclk_fimc_lclk, 166750000);
 
 	/* be able to handle clock on/off only with this clock */
-	clk = clk_get(&pdev->dev, "fimc");
+	*clk = clk_get(&pdev->dev, "fimc");
 	if (IS_ERR(clk)) {
 		dev_err(&pdev->dev, "failed to get interface clock\n");
 		goto err_clk3;
@@ -101,7 +100,7 @@ int s3c_fimc_clk_on(struct platform_device *pdev, struct clk *clk)
 		goto err_clk3;
 	}
 
-	clk_enable(clk);
+	clk_enable(*clk);
 
 	return 0;
 
@@ -115,14 +114,14 @@ err_clk1:
 	return -EINVAL;
 }
 
-int s3c_fimc_clk_off(struct platform_device *pdev, struct clk *clk)
+int s3c_fimc_clk_off(struct platform_device *pdev, struct clk **clk)
 {
 	int ret;
 
-	clk_disable(clk);
-	clk_put(clk);
+	clk_disable(*clk);
+	clk_put(*clk);
 
-	clk = NULL;
+	*clk = NULL;
 	ret = s5pv210_pd_disable("fimc_pd");
 	if (ret < 0)
 		dev_err(&pdev->dev, "failed to disable fimc power domain\n");

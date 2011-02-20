@@ -27,7 +27,7 @@
 #include "s3c-pcm.h"
 
 #define SMDK_WM8580_XTI_FREQ	24000000
-#define SMDK_WM8580_PCM_PORT	1
+#define SMDK_WM8580_PCM_PORT	0
 
 static int set_epll_rate(unsigned long rate)
 {
@@ -111,8 +111,6 @@ static int smdk_socpcm_hw_params(struct snd_pcm_substream *substream,
 			__func__, __LINE__, params_rate(params));
 		return -EINVAL;
 	}
-
-	printk("PCM Audio: 16Bits Mono %uHz\n", params_rate(params));
 
 	/* Set the Codec DAI configuration */
 	ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_DSP_B
@@ -235,18 +233,18 @@ static int smdk_wm8580_pcm_init(struct snd_soc_codec *codec)
 
 static struct snd_soc_dai_link smdk_dai[] = {
 {
-	.name = "WM8580 PCM SAIF RX",
+	.name = "WM8580 PCM PAIF RX",
 	.stream_name = "Playback",
 	.cpu_dai = &s3c_pcm_dai[SMDK_WM8580_PCM_PORT],
-	.codec_dai = &wm8580_dai[WM8580_DAI_SAIFRX],
+	.codec_dai = &wm8580_dai[WM8580_DAI_PAIFRX],
 	.init = smdk_wm8580_pcm_init,
 	.ops = &smdk_pcm_ops,
 },
 {
-	.name = "WM8580 PCM SAIF TX",
+	.name = "WM8580 PCM PAIF TX",
 	.stream_name = "Capture",
 	.cpu_dai = &s3c_pcm_dai[SMDK_WM8580_PCM_PORT],
-	.codec_dai = &wm8580_dai[WM8580_DAI_SAIFTX],
+	.codec_dai = &wm8580_dai[WM8580_DAI_PAIFTX],
 	.init = smdk_wm8580_pcm_init,
 	.ops = &smdk_pcm_ops,
 },

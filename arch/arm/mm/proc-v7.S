@@ -265,11 +265,7 @@ __v7_setup:
 	 *   NS1 = PRRR[19] = 1		- normal shareable property
 	 *   NOS = PRRR[24+n] = 1	- not outer shareable
 	 */
-#ifdef CONFIG_ARM_ERRATA_709718
-	ldr	r5, =0xff0881a8			@ PRRR
-#else
 	ldr	r5, =0xff0a81a8			@ PRRR
-#endif
 	ldr	r6, =0x40e040e0			@ NMRR
 	mcr	p15, 0, r5, c10, c2, 0		@ write PRRR
 	mcr	p15, 0, r6, c10, c2, 1		@ write NMRR

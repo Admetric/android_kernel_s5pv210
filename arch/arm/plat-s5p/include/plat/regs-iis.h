@@ -26,9 +26,6 @@
 #define S5P_IISSIZE			(0x28)
 #define S5P_IISTRNCNT			(0x2C)
 #define S5P_IISADDR0			(0x30)
-#define S5P_IISADDR1            (0x34)
-#define S5P_IISADDR2            (0x38)
-#define S5P_IISADDR3            (0x3C)
 
 #define S5P_IISCON_FTXSURSTAT		(1 << 24)
 #define S5P_IISCON_FTXSURINTEN		(1 << 23)

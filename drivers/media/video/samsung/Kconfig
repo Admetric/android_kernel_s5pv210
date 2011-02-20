@@ -21,6 +21,7 @@ source "drivers/media/video/samsung/tv20/Kconfig"
 if CPU_S5PV210_EVT1
 source "drivers/media/video/samsung/rotator/Kconfig"
 source "drivers/media/video/samsung/g2d/Kconfig"
+source "drivers/media/video/samsung/g3d/Kconfig"
 endif
 endif
 
@@ -67,12 +68,4 @@ config VIDEO_SAMSUNG_MEMSIZE_TV
         int "Memory size in kbytes for TV"
         depends on VIDEO_TV
         default "8192"
-
-config VIDEO_SAMSUNG_MEMSIZE_TEXSTREAM
-	int "Memory size in kbytes for Texture Stream"
-	default "6144"
-
-config VIDEO_SAMSUNG_MEMSIZE_G2D
-	int "Memory size in kbytes for G2D"
-	default "4096"
 endif

@@ -39,11 +39,8 @@ static inline void s3c_pm_arch_show_resume_irqs(void)
 /* make these defines, we currently do not have any need to change
  * the IRQ wake controls depending on the CPU we are running on */
 
-/* 2009.04.27 by icarus : don't use this definition, use extern var */
-#if 0
 #define s3c_irqwake_eintallow	(0xFFFFFFFF)
 #define s3c_irqwake_intallow	(0)
-#endif
 
 static inline void s3c_pm_arch_update_uart(void __iomem *regs,
 					   struct pm_uart_save *save)

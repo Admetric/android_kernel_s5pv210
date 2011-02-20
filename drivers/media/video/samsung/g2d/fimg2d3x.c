@@ -184,7 +184,7 @@ static const struct file_operations g2d_fops = {
 
 static struct miscdevice g2d_dev = {
 	.minor		= G2D_MINOR,
-	.name		= "sec-g2d",
+	.name		= "g2d",
 	.fops		= &g2d_fops,
 };
 

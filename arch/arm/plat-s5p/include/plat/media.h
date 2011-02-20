@@ -17,19 +17,15 @@
 #include <asm/setup.h>
 
 /* 3 fimc indexes should be fixed as n, n+1 and n+2 */
-#define S3C_MDEV_FIMC0      0
-#define S3C_MDEV_FIMC1      1
-#define S3C_MDEV_FIMC2      2
-#define S3C_MDEV_TV         3
-#define S3C_MDEV_MFC        4
-#define S3C_MDEV_JPEG       5
-#define S3C_MDEV_PMEM       6
-#define S3C_MDEV_PMEM_GPU1  7
-#define S3C_MDEV_PMEM_ADSP  8
-#define S3C_MDEV_TEXSTREAM  9
-#define S3C_MDEV_FIMD       10
-#define S3C_MDEV_G2D        11
-#define S3C_MDEV_MAX        12
+#define S3C_MDEV_JPEG		0
+#define S3C_MDEV_MFC		1
+#define S3C_MDEV_FIMD		2
+#define S3C_MDEV_FIMC0		3
+#define S3C_MDEV_FIMC1		4
+#define S3C_MDEV_FIMC2		5
+#define S3C_MDEV_CMM		6
+#define S3C_MDEV_PMEM		7
+#define S3C_MDEV_TV		8
 
 
 struct s3c_media_device {

@@ -373,6 +373,7 @@ spidev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		retval = __get_user(tmp, (u8 __user *)arg);
 		if (retval == 0) {
 			u8	save = spi->mode;
+
 			if (tmp & ~SPI_MODE_MASK) {
 				retval = -EINVAL;
 				break;
@@ -380,7 +381,6 @@ spidev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 			tmp |= spi->mode & ~SPI_MODE_MASK;
 			spi->mode = (u8)tmp;
-
 			retval = spi_setup(spi);
 			if (retval < 0)
 				spi->mode = save;

@@ -76,6 +76,7 @@ void ipc_start(void)
 	ipc_enable_postprocessing(ON);
 	ipc_enable(ON);
 }
+EXPORT_SYMBOL(ipc_start);
 
 void ipc_stop(void)
 {
@@ -91,6 +92,7 @@ void ipc_stop(void)
 	clk_disable(ipc->clk);
 #endif
 }
+EXPORT_SYMBOL(ipc_stop);
 
 void ipc_field_id_control(enum ipc_field_id id)
 {
@@ -378,6 +380,7 @@ int ipc_init(u32 src_width, u32 src_height, enum ipc_2d ipc2d)
 
 	return 0;
 }
+EXPORT_SYMBOL(ipc_init);
 
 static int ipc_probe(struct platform_device *pdev)
 {

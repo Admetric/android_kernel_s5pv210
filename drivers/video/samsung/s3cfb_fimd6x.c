@@ -177,7 +177,7 @@ int s3cfb_set_clock(struct s3cfb_global *ctrl)
 		printk(KERN_INFO "FIMD src hclk = %d\n", src_clk);
 	}
 
-	vclk = PICOS2KHZ(ctrl->fb[pdata->default_win]->var.pixclock) * 1000;
+	vclk = ctrl->fb[pdata->default_win]->var.pixclock;
 
 	if (vclk > maxclk) {
 		dev_info(ctrl->dev, "vclk(%d) should be smaller than %d\n",
@@ -573,7 +573,7 @@ int s3cfb_set_buffer_address(struct s3cfb_global *ctrl, int id)
 		start_addr = fix->smem_start + ((var->xres_virtual *
 				var->yoffset + var->xoffset) *
 				(var->bits_per_pixel / 8));
-
+		
 		end_addr = start_addr + fix->line_length * var->yres;
 	}
 

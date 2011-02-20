@@ -19,6 +19,26 @@
 #include <plat/media.h>
 
 static struct s3c_media_device media_devs[] = {
+#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_JPEG
+	{
+		.id = S3C_MDEV_JPEG,
+		.name = "jpeg",
+		.bank = 0,
+		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_JPEG * SZ_1K,
+		.paddr = 0,
+	},
+#endif
+
+#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC
+	{
+		.id = S3C_MDEV_MFC,
+		.name = "mfc",
+		.bank = 0,
+		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC * SZ_1K,
+		.paddr = 0,
+	},
+#endif
+
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC0
 	{
 		.id = S3C_MDEV_MFC,
@@ -35,6 +55,16 @@ static struct s3c_media_device media_devs[] = {
 		.name = "mfc",
 		.bank = 1,
 		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC1 * SZ_1K,
+		.paddr = 0,
+	},
+#endif
+
+#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMD
+	{
+		.id = S3C_MDEV_FIMD,
+		.name = "fimd",
+		.bank = 1,
+		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMD * SZ_1K,
 		.paddr = 0,
 	},
 #endif
@@ -69,85 +99,36 @@ static struct s3c_media_device media_devs[] = {
 	},
 #endif
 
-#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_TV
+#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_CMM
 	{
-		.id = S3C_MDEV_TV,
-		.name = "tv",
-		.bank = 0,
-		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_TV * SZ_1K,
+		.id = S3C_MDEV_CMM,
+		.name = "cmm",
+		.bank = 1,
+		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_CMM * SZ_1K,
 		.paddr = 0,
 	},
 #endif
 
-#ifdef	CONFIG_ANDROID_PMEM_MEMSIZE_PMEM
-/* pmem */
+#ifdef CONFIG_S3C_PMEM_MEMSIZE_PMEM
 	{
 		.id = S3C_MDEV_PMEM,
 		.name = "pmem",
-		.memsize = CONFIG_ANDROID_PMEM_MEMSIZE_PMEM * SZ_1K,
-		.paddr = 0,
-		.bank = 0, //OneDRAM
-	},
-#endif
-
-#ifdef CONFIG_ANDROID_PMEM_MEMSIZE_PMEM_GPU1
-        {
-                .id = S3C_MDEV_PMEM_GPU1,
-                .name = "pmem_gpu1",
-                .memsize = CONFIG_ANDROID_PMEM_MEMSIZE_PMEM_GPU1 * SZ_1K,
-                .paddr = 0,
-		.bank = 0, //OneDRAM 
-        },
-        {
-                .id = S3C_MDEV_PMEM_ADSP,
-                .name = "pmem_adsp",
-                .memsize = CONFIG_ANDROID_PMEM_MEMSIZE_PMEM_ADSP * SZ_1K,
-                .paddr = 0,
-		.bank = 0, //OneDRAM
-        },
-#endif
-
-
-#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_JPEG
-	{
-		.id = S3C_MDEV_JPEG,
-		.name = "jpeg",
-		.bank = 0,
-		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_JPEG * SZ_1K,
-		.paddr = 0,
-	},
-#endif
-
-#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_TEXSTREAM
-	{
-		.id = S3C_MDEV_TEXSTREAM,
-		.name = "texstream",
-		.bank = 0,
-		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_TEXSTREAM * SZ_1K,
-		.paddr = 0,
-	},
-#endif
-
-#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMD
-	{
-		.id = S3C_MDEV_FIMD,
-		.name = "fimd",
 		.bank = 1,
-		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMD * SZ_1K,
+		.memsize = CONFIG_S3C_PMEM_MEMSIZE_PMEM * SZ_1K,
 		.paddr = 0,
 	},
 #endif
 
-#ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_G2D
-	{
-		.id = S3C_MDEV_G2D,
-		.name = "g2d",
-		.bank = 0,
-		.memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_G2D * SZ_1K,
-		.paddr = 0,
-	},
+#define	CONFIG_VIDEO_SAMSUNG_MEMSIZE_TV	(12*1024)
+#ifdef  CONFIG_VIDEO_SAMSUNG_MEMSIZE_TV
+        {
+                .id = S3C_MDEV_TV,
+                .name = "tv",
+                .bank = 1,
+                .memsize = CONFIG_VIDEO_SAMSUNG_MEMSIZE_TV * SZ_1K,
+                .paddr = 0,
+        },
 #endif
-
 };
 
 static struct s3c_media_device *s3c_get_media_device(int dev_id, int bank)
@@ -219,7 +200,7 @@ void s5pv210_reserve_bootmem(void)
 
 		mdev->paddr = virt_to_phys(__alloc_bootmem(mdev->memsize,
 				PAGE_SIZE, meminfo.bank[mdev->bank].start));
-		printk(KERN_INFO "s5pv210: %lu bytes system memory reserved "
+		printk(KERN_INFO "s5pv210: 0x%lx bytes system memory reserved "
 			"for %s at 0x%08x\n", (unsigned long) mdev->memsize,
 			mdev->name, mdev->paddr);
 	}

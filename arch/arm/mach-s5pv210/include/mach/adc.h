@@ -14,6 +14,7 @@
 #ifndef __ASM_PLAT_ADC_H
 #define __ASM_PLAT_ADC_H __FILE__
 
+#include <linux/platform_device.h>
 struct s3c_adc_client;
 
 extern int s3c_adc_start(struct s3c_adc_client *client,

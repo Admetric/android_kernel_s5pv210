@@ -91,9 +91,9 @@ static void s5pv210_pm_prepare(void)
 	__raw_writel(0xffffffff, S5P_VIC2REG(VIC_INT_ENABLE_CLEAR));
 	__raw_writel(0xffffffff, S5P_VIC3REG(VIC_INT_ENABLE_CLEAR));
 
-	/* Enable KEYPAD, RTC ALARM interrupt as a wakeup source */
+	/* Enable RTC TICK,ALARM interrupt as a wakeup source */
 	tmp = __raw_readl(S5P_WAKEUP_MASK);
-	tmp &= ~(1 << 1 | 1 << 5);
+	tmp &= ~((1 << 1) | (1 << 2));
 	__raw_writel(tmp, S5P_WAKEUP_MASK);
 
 }
@@ -115,7 +115,7 @@ static int s5pv210_pm_resume(struct sys_device *dev)
 	u32 tmp;
 
 	tmp = __raw_readl(S5P_OTHERS);
-	tmp |= ((1 << 31)|(1 << 30)|(1 << 29)|(1 << 28));
+	tmp |= ((1 << 31)|(1 << 29)|(1 << 28));
 	__raw_writel(tmp, S5P_OTHERS);
 
 	s3c_pm_do_restore(s5pv210_sleep, ARRAY_SIZE(s5pv210_sleep));

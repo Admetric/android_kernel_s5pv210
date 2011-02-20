@@ -29,7 +29,7 @@
  * set bit to 1 in allow bitfield to enable the wakeup settings on it
 */
 
-unsigned long s3c_irqwake_intallow	= 0x00000022L;
+unsigned long s3c_irqwake_intallow	= 0x00000006L;
 unsigned long s3c_irqwake_eintallow	= 0xffffffffL;
 
 int s3c_irq_wake(unsigned int irqno, unsigned int state)

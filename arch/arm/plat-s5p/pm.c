@@ -43,11 +43,6 @@
 
 #define PFX "s5p pm: "
 static struct sleep_save core_save[] = {
-/* PLL Control */
-	SAVE_ITEM(S5P_APLL_CON),
-	SAVE_ITEM(S5P_MPLL_CON),
-	SAVE_ITEM(S5P_EPLL_CON),
-	SAVE_ITEM(S5P_VPLL_CON),
 /* Clock source */
 	SAVE_ITEM(S5P_CLK_SRC0),
 	SAVE_ITEM(S5P_CLK_SRC1),

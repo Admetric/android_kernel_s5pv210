@@ -289,13 +289,13 @@ static struct snd_soc_dai_link smdk64xx_dai[] = {
 	.codec_dai = &wm8580_dai[WM8580_DAI_PAIFTX],
 	.init = smdk64xx_wm8580_init_paiftx,
 	.ops = &smdk64xx_ops,
-},/*
+},
 {
 	.name = "WM8580 PAIF RX",
 	.stream_name = "Playback-Sec",
 	.cpu_dai = &i2s_sec_fifo_dai,
 	.codec_dai = &wm8580_dai[WM8580_DAI_PAIFRX],
-},*/
+},
 };
 
 static struct snd_soc_card smdk64xx = {
@@ -348,28 +348,11 @@ static int __init smdk64xx_audio_init(void)
 		return ret;
 
 	/* Set XCLK_OUT enable */
-#if 0
 	reg = __raw_readl(S5P_CLK_OUT);
 	reg &= ~((0x1f<<12) | (0xf<<20));
 	reg |= ((0x2<<12) | ((div-1)<<20));
 	__raw_writel(reg, S5P_CLK_OUT);
-#else
-	/* yman.seo Set XCLK_OUT as 24MHz (XUSBXTI -> 24MHz) */
-	reg = __raw_readl(S5P_CLK_OUT);
-	reg &= ~S5P_CLKOUT_CLKSEL_MASK;
-	reg |= S5P_CLKOUT_CLKSEL_XUSBXTI;
-	reg &= ~S5P_CLKOUT_DIV_MASK;
-//	reg |= 0x0000 << S5P_CLKOUT_DIV_SHIFT;	/* DIVVAL = 0, Ratio = 1 = DIVVAL + 1 */
-	reg |= 0x0001 << S5P_CLKOUT_DIV_SHIFT;	/* DIVVAL = 1, Ratio = 2 = DIVVAL + 1 */
-	__raw_writel(reg, S5P_CLK_OUT);
 
-	/* yman.seo CLKOUT is prior to CLK_OUT of SYSCON. XXTI & XUSBXTI work in sleep mode */
-	reg = __raw_readl(S5P_OTHERS);
-	reg &= ~(0x0003 << 8);
-//	reg |= 0x0003 << 8;	/* XUSBXTI */
-	reg |= 0x0000 << 8;	/* Clock from SYSCON */
-	__raw_writel(reg, S5P_OTHERS);
-#endif
 	smdk64xx_snd_device = platform_device_alloc("soc-audio", -1);
 	if (!smdk64xx_snd_device)
 		return -ENOMEM;

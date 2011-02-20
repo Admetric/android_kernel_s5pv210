@@ -1479,17 +1479,8 @@ dm9000_probe(struct platform_device *pdev)
 		/* try reading from mac */
 		
 		mac_src = "chip";
-	#if 0
 		for (i = 0; i < 6; i++)
 			ndev->dev_addr[i] = ior(db, i+DM9000_PAR);
-	#else
-        ndev->dev_addr[0] = 0x00;
-        ndev->dev_addr[1] = 0x09;
-        ndev->dev_addr[2] = 0xc0;
-        ndev->dev_addr[3] = 0xff;
-        ndev->dev_addr[4] = 0xec;
-        ndev->dev_addr[5] = 0x48;
-	#endif
 	}
 
 	if (!is_valid_ether_addr(ndev->dev_addr))

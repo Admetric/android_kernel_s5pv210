@@ -240,8 +240,6 @@ struct sdhci_host {
 #define SDHCI_QUIRK_NO_HISPD_BIT			(1<<26)
 /* Controller has unreliable card present bit */
 #define SDHCI_QUIRK_BROKEN_CARD_PRESENT_BIT		(1<<27)
-/* Controller has hardware bugs */
-#define SDHCI_QUIRK_INIT_ISSUE_CMD			(1<<29)
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */
 
@@ -318,7 +316,6 @@ struct sdhci_ops {
 	void            (*set_ios)(struct sdhci_host *host,
 				   struct mmc_ios *ios);
 	int             (*get_ro) (struct mmc_host *mmc);
-	void		(*init_issue_cmd)(struct sdhci_host *host);
 };
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS

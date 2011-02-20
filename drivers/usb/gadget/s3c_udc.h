@@ -123,7 +123,6 @@ struct s3c_udc {
 	struct platform_device *dev;
 	spinlock_t lock;
 
-	u16 status;
 	int ep0state;
 	struct s3c_ep ep[S3C_MAX_ENDPOINTS];
 

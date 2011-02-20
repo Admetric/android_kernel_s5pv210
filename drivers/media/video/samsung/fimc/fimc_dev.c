@@ -29,11 +29,9 @@
 #include <plat/clock.h>
 #include <plat/media.h>
 #include <plat/fimc.h>
-#ifdef CONFIG_CPU_FREQ_S5PV210
-#include <mach/cpu-freq-v210.h>
-#endif /* CONFIG_CPU_FREQ_S5PV210 */
 #include <linux/videodev2_samsung.h>
 
+#include "fimc-ipc.h"
 #include "fimc.h"
 
 struct fimc_global *fimc_dev;
@@ -502,7 +500,7 @@ static int fimc_unregister_controller(struct platform_device *pdev)
 	kfree(&ctrl->wq);
 
 	if (pdata->clk_off)
-		pdata->clk_off(pdev, ctrl->clk);
+		pdata->clk_off(pdev, &ctrl->clk);
 
 	iounmap(ctrl->regs);
 	memset(ctrl, 0, sizeof(*ctrl));
@@ -585,6 +583,30 @@ int fimc_mmap_out_src(struct file *filp, struct vm_area_struct *vma)
 	return 0;
 }
 
+static inline int fimc_mmap_out_buf(struct file *filp, struct vm_area_struct *vma)
+{
+	struct fimc_control *ctrl = video_get_drvdata(video_devdata(filp));
+	unsigned long pfn = 0, size;
+	int ret = 0;
+
+	size = vma->vm_end - vma->vm_start;
+	if (size > ctrl->mem.size)
+		return -EINVAL;
+
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	vma->vm_flags |= VM_RESERVED;
+
+	pfn = __phys_to_pfn(ctrl->mem.base);
+	ret = remap_pfn_range(vma, vma->vm_start, pfn, size, vma->vm_page_prot);
+	if (ret != 0)
+		fimc_err("%s: remap_pfn_range fail.\n", __func__);
+
+	fimc_dbg("%s: size = %d/%d, mmap from %x to = %p\n", __func__, size, ctrl->mem.size, ctrl->mem.base, vma->vm_start);
+	return ret;
+}
+
+
+
 static inline
 int fimc_mmap_out_dst(struct file *filp, struct vm_area_struct *vma, u32 idx)
 {
@@ -605,6 +627,7 @@ int fimc_mmap_out_dst(struct file *filp, struct vm_area_struct *vma, u32 idx)
 	if (ret != 0)
 		fimc_err("remap_pfn_range fail.\n");
 
+	fimc_dbg("%s: idx = %d, base = %x\n", __func__, idx, ctrl->out->ctx[ctx_id].dst[idx].base[0]);
 	return ret;
 }
 
@@ -617,6 +640,11 @@ static inline int fimc_mmap_out(struct file *filp, struct vm_area_struct *vma)
 	int idx = ctrl->out->ctx[ctx_id].overlay.req_idx;
 	int ret = 0;
 
+
+	if (ctrl->mmap_out_buf)
+		return fimc_mmap_out_buf(filp, vma);
+
+	fimc_dbg("%s: idx = %d\n", __func__, idx);
 	if (idx >= 0)
 		ret = fimc_mmap_out_dst(filp, vma, idx);
 	else
@@ -871,8 +899,8 @@ static int fimc_open(struct file *filp)
 	}
 
 	if (in_use == 1) {
-		if (ctrl->id == 0 && pdata->clk_on)
-			pdata->clk_on(to_platform_device(ctrl->dev), ctrl->clk);
+		if (pdata->clk_on)
+			pdata->clk_on(to_platform_device(ctrl->dev), &ctrl->clk);
 
 		if (pdata->hw_ver == 0x40)
 			fimc_hw_reset_camera(ctrl);
@@ -900,11 +928,6 @@ static int fimc_open(struct file *filp)
 	prv_data->ctrl = ctrl;
 	prv_data->ctx_id = in_use - 1;
 	filp->private_data = prv_data;
-
-#ifdef CONFIG_CPU_FREQ_S5PV210
-	if (0 == ctrl->id)
-		s5pv210_set_cpufreq_level(RESTRICT_TABLE);
-#endif /* CONFIG_CPU_FREQ_S5PV210 */
 
 	mutex_unlock(&ctrl->lock);
 
@@ -934,9 +957,9 @@ static int fimc_release(struct file *filp)
 	pdata = to_fimc_plat(ctrl->dev);
 
 	atomic_dec(&ctrl->in_use);
-
+	
 	/* FIXME: turning off actual working camera */
-	if (ctrl->cam && ctrl->id != 2) {
+	if (ctrl->cam) {
 		/* shutdown the MCLK */
 		clk_disable(ctrl->cam->clk);
 
@@ -961,16 +984,11 @@ static int fimc_release(struct file *filp)
 
 		kfree(ctrl->cap);
 		ctrl->cap = NULL;
-
-		if (ctrl->id == 0 && pdata->clk_off)
-			pdata->clk_off(to_platform_device(ctrl->dev), ctrl->clk);
 	}
 
 	if (ctrl->out) {
 		if (ctx->status != FIMC_STREAMOFF) {
-			clk_enable(ctrl->clk);
 			ret = fimc_outdev_stop_streaming(ctrl, ctx);
-			clk_disable(ctrl->clk);
 			if (ret < 0)
 				fimc_err("Fail: fimc_stop_streaming\n");
 
@@ -1023,9 +1041,6 @@ static int fimc_release(struct file *filp)
 			ctrl->status = FIMC_STREAMOFF;
 			fimc_outdev_init_idxs(ctrl);
 
-			if (ctrl->id == 0 && pdata->clk_off)
-				pdata->clk_off(to_platform_device(ctrl->dev), ctrl->clk);
-
 			ctrl->mem.curr = ctrl->mem.base;
 
 			kfree(ctrl->out);
@@ -1035,23 +1050,10 @@ static int fimc_release(struct file *filp)
 			filp->private_data = NULL;
 		}
 	}
-#ifdef CONFIG_CPU_FREQ_S5PV210
-	if (0 == ctrl->id)
-		s5pv210_set_cpufreq_level(NORMAL_TABLE);
-#endif /* CONFIG_CPU_FREQ_S5PV210 */
 
-	/* it remain afterimage when I play movie using overlay and exit
-	 */
-	if (ctrl->fb.is_enable == 1) {
-		fimc_warn("WIN_OFF for FIMC%d\n", ctrl->id);
-		ret = s3cfb_direct_ioctl(ctrl->id, S3CFB_SET_WIN_OFF,
-						(unsigned long)NULL);
-		if (ret < 0) {
-			fimc_err("direct_ioctl(S3CFB_SET_WIN_OFF) fail\n");
-			return -EINVAL;
-		}
-
-		ctrl->fb.is_enable = 0;
+	if (atomic_read(&ctrl->in_use) == 0) {
+		if (pdata->clk_off)
+			pdata->clk_off(to_platform_device(ctrl->dev), &ctrl->clk);
 	}
 
 	fimc_warn("FIMC%d %d released.\n", ctrl->id, atomic_read(&ctrl->in_use));
@@ -1125,7 +1127,7 @@ static int fimc_init_global(struct platform_device *pdev)
 		}
 
 		/* mout_cam */
-		mout_cam = clk_get(&pdev->dev, "mout_cam1");
+		mout_cam = clk_get(&pdev->dev, "mout_cam");
 
 		/* mclk */
 		cam->clk = clk_get(&pdev->dev, cam->clk_name);
@@ -1146,6 +1148,8 @@ static int fimc_init_global(struct platform_device *pdev)
 		fimc_dev->camera[cam->id] = cam;
 	}
 
+	fimc_dev->initialized = 1;
+
 	return 0;
 }
 
@@ -1158,8 +1162,6 @@ static int fimc_configure_subdev(struct	platform_device	*pdev, int id)
 	struct s3c_platform_fimc *pdata;
 	struct s3c_platform_camera *cam;
 	struct fimc_control *ctrl;
-	int i;
-	int subdev_cnt = 0;
 
 #ifdef CONFIG_I2C
 	struct i2c_adapter *i2c_adap;
@@ -1171,67 +1173,56 @@ static int fimc_configure_subdev(struct	platform_device	*pdev, int id)
 
 	ctrl = get_fimc_ctrl(id);
 	pdata = to_fimc_plat(&pdev->dev);
+	cam = pdata->camera[id];
 
 	/* Subdev registration */
 #ifdef CONFIG_I2C
-	if (!fimc_dev->initialized) {
-		for (i = 0; i < FIMC_MAXCAMS; i++) {
-			cam = pdata->camera[i];
-			if (cam) { 
-				if (cam->id == CAMERA_WB) {
-					subdev_cnt++;
-					continue;
-				}
-
-				i2c_adap = i2c_get_adapter(cam->i2c_busnum);
-				if (!i2c_adap) {
-					fimc_info1("subdev i2c_adapter missing-skip "
+	if (cam) {
+		i2c_adap = i2c_get_adapter(cam->i2c_busnum);
+		if (!i2c_adap) {
+			fimc_info1("subdev i2c_adapter missing-skip "
 							"registration\n");
-				}
-
-				i2c_info = cam->info;
-				if (!i2c_info) {
-					fimc_err("%s: subdev i2c board info missing\n",
-							__func__);
-					return -ENODEV;
-				}
-
-				name = i2c_info->type;
-				if (!name) {
-					fimc_info1("subdev i2c dirver name missing-skip "
-							"registration\n");
-					return -ENODEV;
-				}
-
-				addr = i2c_info->addr;
-				if (!addr) {
-					fimc_info1("subdev i2c address missing-skip "
-							"registration\n");
-					return -ENODEV;
-				}
-
-				/*
-				 * NOTE: first time subdev being registered,
-				 * s_config is called and try to initialize subdev device
-				 * but in this point, we are not giving MCLK and power to subdev
-				 * so nothing happens but pass platform data through
-				 */
-				sd = v4l2_i2c_new_subdev_board(&ctrl->v4l2_dev,
-						i2c_adap, name, i2c_info, &addr);
-				if (!sd) {
-					fimc_err("%s: v4l2 subdev board registering failed\n",
-							__func__);
-				} else {
-					subdev_cnt++;
-				}
-
-				/* Assign subdev to proper camera device pointer */
-				fimc_dev->camera[cam->id]->sd = sd;
-			}
 		}
 
-		if (subdev_cnt) 
-			fimc_dev->initialized = 1;
+		i2c_info = cam->info;
+		if (!i2c_info) {
+			fimc_err("%s: subdev i2c board info missing\n",
+								__func__);
+			return -ENODEV;
+		}
+
+		name = i2c_info->type;
+		if (!name) {
+			fimc_info1("subdev i2c dirver name missing-skip "
+				"registration\n");
+			return -ENODEV;
+		}
+
+		addr = i2c_info->addr;
+		if (!addr) {
+			fimc_info1("subdev i2c address missing-skip "
+							"registration\n");
+			return -ENODEV;
+		}
+
+		/*
+		 * NOTE: first time subdev being registered,
+		 * s_config is called and try to initialize subdev device
+		 * but in this point, we are not giving MCLK and power to subdev
+		 * so nothing happens but pass platform data through
+		 */
+		sd = v4l2_i2c_new_subdev_board(&ctrl->v4l2_dev,
+				i2c_adap, name, i2c_info, &addr);
+		if (!sd) {
+			fimc_err("%s: v4l2 subdev board registering failed\n",
+				__func__);
+		}
+
+		/* Assign camera device to fimc */
+		fimc_dev->camera[cam->id] = cam;
+
+		/* Assign subdev to proper camera device pointer */
+		fimc_dev->camera[cam->id]->sd = sd;
 	}
 #endif
 	return 0;
@@ -1353,7 +1344,6 @@ static int __devinit fimc_probe(struct platform_device *pdev)
 {
 	struct s3c_platform_fimc *pdata;
 	struct fimc_control *ctrl;
-	struct clk *srclk;
 	int ret;
 
 	if (!fimc_dev) {
@@ -1374,35 +1364,6 @@ static int __devinit fimc_probe(struct platform_device *pdev)
 	pdata = to_fimc_plat(&pdev->dev);
 	if (pdata->cfg_gpio)
 		pdata->cfg_gpio(pdev);
-
-	/* fimc source clock */
-	srclk = clk_get(&pdev->dev, pdata->srclk_name);
-	if (IS_ERR(srclk)) {
-		fimc_err( "%s: failed to get source clock of fimc\n",
-				__func__);
-		goto err_v4l2;
-	}
-
-	/* fimc clock */
-	ctrl->clk = clk_get(&pdev->dev, pdata->clk_name);
-	if (IS_ERR(ctrl->clk)) {
-		fimc_err("%s: failed to get fimc clock source\n",
-			__func__);
-		goto err_v4l2;
-	}
-
-	/* set parent clock */
-        if (ctrl->clk->ops != NULL && ctrl->clk->ops->set_parent != NULL) {
-		ctrl->clk->parent = srclk;
-		ctrl->clk->ops->set_parent(ctrl->clk, srclk);
-	}
-
-	/* set clockrate for fimc interface block */
-        if (ctrl->clk->ops != NULL && ctrl->clk->ops->set_rate != NULL) {
-		ctrl->clk->ops->set_rate(ctrl->clk, pdata->clk_rate);
-		dev_info(&pdev->dev, "fimc set clock rate to %d\n",
-				pdata->clk_rate);
-	}
 
 	/* V4L2 device-subdev registration */
 	ret = v4l2_device_register(&pdev->dev, &ctrl->v4l2_dev);
@@ -1581,8 +1542,9 @@ int fimc_suspend(struct platform_device *pdev, pm_message_t state)
 	else
 		ctrl->status = FIMC_OFF_SLEEP;
 
+
 	if (atomic_read(&ctrl->in_use) && pdata->clk_off) {
-		pdata->clk_off(pdev, ctrl->clk);
+		pdata->clk_off(pdev, &ctrl->clk);
 	}
 	return 0;
 }
@@ -1724,7 +1686,7 @@ int fimc_resume(struct platform_device *pdev)
 	pdata = to_fimc_plat(ctrl->dev);
 
 	if (atomic_read(&ctrl->in_use) && pdata->clk_on)
-		pdata->clk_on(pdev, ctrl->clk);
+		pdata->clk_on(pdev, &ctrl->clk);
 
 	if (ctrl->out)
 		fimc_resume_out(ctrl);

@@ -43,7 +43,6 @@ struct s3c_i2sv2_info {
 	struct device	*dev;
 	void __iomem	*regs;
 
-	struct clk	*sclk_audio;
 	struct clk	*iis_pclk;
 	struct clk	*iis_cclk;
 	struct clk	*iis_clk;
@@ -56,10 +55,7 @@ struct s3c_i2sv2_info {
 	u32		 suspend_iismod;
 	u32		 suspend_iiscon;
 	u32		 suspend_iispsr;
-	u32		 suspend_iisahb;
 	u32		 suspend_audss_clksrc;
-	u32      suspend_audss_clkdiv;
-	u32      suspend_audss_clkgate;
 };
 
 struct s3c_i2sv2_rate_calc {

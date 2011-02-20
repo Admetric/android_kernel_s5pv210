@@ -27,6 +27,7 @@ static struct resource s3c_ts_resource[] = {
 		.end   = S3C_PA_ADC + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
+#ifndef	CONFIG_TOUCHSCREEN_S3C_PORT1
 	[1] = {
 		.start = IRQ_PENDN,
 		.end   = IRQ_PENDN,
@@ -37,6 +38,18 @@ static struct resource s3c_ts_resource[] = {
 		.end   = IRQ_ADC,
 		.flags = IORESOURCE_IRQ,
 	}
+#else
+	[1] = {
+		.start = IRQ_PENDN1,
+		.end   = IRQ_PENDN1,
+		.flags = IORESOURCE_IRQ,
+	},
+	[2] = {
+		.start = IRQ_ADC1,
+		.end   = IRQ_ADC1,
+		.flags = IORESOURCE_IRQ,
+	}
+#endif
 };
 
 struct platform_device s3c_device_ts = {

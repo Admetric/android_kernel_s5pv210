@@ -29,121 +29,21 @@
 #include <plat/fimc.h>
 #include <plat/csis.h>
 
-/* Android Gadget */
-#include <linux/usb/android_composite.h>
-#define S3C_VENDOR_ID		0x18d1
-#define S3C_PRODUCT_ID		0x0001
-#define S3C_ADB_PRODUCT_ID	0x0005
-#define MAX_USB_SERIAL_NUM	17
-
-static char *usb_functions_ums[] = {
-	"usb_mass_storage",
-};
-
-static char *usb_functions_rndis[] = {
-	"rndis",
-};
-
-static char *usb_functions_rndis_adb[] = {
-	"rndis",
-	"adb",
-};
-static char *usb_functions_ums_adb[] = {
-	"usb_mass_storage",
-	"adb",
-};
-
-static char *usb_functions_all[] = {
-#ifdef CONFIG_USB_ANDROID_RNDIS
-	"rndis",
-#endif
-	"usb_mass_storage",
-	"adb",
-#ifdef CONFIG_USB_ANDROID_ACM
-	"acm",
-#endif
-};
-static struct android_usb_product usb_products[] = {
-	{
-		.product_id	= S3C_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums),
-		.functions	= usb_functions_ums,
-	},
-	{
-		.product_id	= S3C_ADB_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums_adb),
-		.functions	= usb_functions_ums_adb,
-	},
-	/*
-	{
-		.product_id	= S3C_RNDIS_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
-		.functions	= usb_functions_rndis,
-	},
-	{
-		.product_id	= S3C_RNDIS_ADB_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
-		.functions	= usb_functions_rndis_adb,
-	},
-	*/
-};
-// serial number should be changed as real device for commercial release
-static char device_serial[MAX_USB_SERIAL_NUM]="0123456789ABCDEF";
-/* standard android USB platform data */
-
-// Information should be changed as real product for commercial release
-static struct android_usb_platform_data android_usb_pdata = {
-	.vendor_id		= S3C_VENDOR_ID,
-	.product_id		= S3C_PRODUCT_ID,
-	.manufacturer_name	= "Android",//"Samsung",
-	.product_name		= "Android",//"Samsung SMDKV210",
-	.serial_number		= device_serial,
-	.num_products 		= ARRAY_SIZE(usb_products),
-	.products 		= usb_products,
-	.num_functions 		= ARRAY_SIZE(usb_functions_all),
-	.functions 		= usb_functions_all,
-};
-
-struct platform_device s3c_device_android_usb = {
-	.name	= "android_usb",
-	.id	= -1,
-	.dev	= {
-		.platform_data	= &android_usb_pdata,
-	},
-};
-EXPORT_SYMBOL(s3c_device_android_usb);
-
-static struct usb_mass_storage_platform_data ums_pdata = {
-	.vendor			= "Android   ",//"Samsung",
-	.product		= "UMS Composite",//"SMDKV210",
-	.release		= 1,
-#ifdef CONFIG_USB_GADGET_ANDROID_MAX_LUNS
-	.nluns          = CONFIG_USB_GADGET_ANDROID_MAX_LUNS,
-#endif
-};
-struct platform_device s3c_device_usb_mass_storage= {
-	.name	= "usb_mass_storage",
-	.id	= -1,
-	.dev	= {
-		.platform_data = &ums_pdata,
-	},
-};
-EXPORT_SYMBOL(s3c_device_usb_mass_storage);
-
 /* DM9000 registrations */
 
 static struct resource s5p_dm9000_resources[] = {
 	[0] = {
-		.start = S5P_PA_DM9000,
-		.end   = S5P_PA_DM9000,
+		.start = S5P_PA_DM9000 + 0x300,
+		.end   = S5P_PA_DM9000 + 0x300,
 		.flags = IORESOURCE_MEM,
 	},
 	[1] = {
 #if defined(CONFIG_DM9000_16BIT)
-		.start = S5P_PA_DM9000 + 2,
-		.end   = S5P_PA_DM9000 + 2,
+		.start = S5P_PA_DM9000 + 0x308,
+		.end   = S5P_PA_DM9000 + 0x308,
 		.flags = IORESOURCE_MEM,
 #else
+#error
 		.start = S5P_PA_DM9000 + 1,
 		.end   = S5P_PA_DM9000 + 1,
 		.flags = IORESOURCE_MEM,
@@ -159,8 +59,8 @@ static struct resource s5p_dm9000_resources[] = {
 		.end   = IRQ_EINT_GROUP(18, 0),
 #endif
 #else
-		.start = IRQ_EINT9,
-		.end   = IRQ_EINT9,
+		.start = IRQ_EINT8,
+		.end   = IRQ_EINT8,
 #endif
 		.flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL,
 	}
@@ -424,51 +324,51 @@ void __init s3c_adc_set_platdata(struct s3c_adc_mach_info *pd)
 
 /* TVOUT interface */
 static struct resource s5p_tvout_resources[] = {
-	[0] = {
-		.start  = S5P_PA_TVENC,
-		.end    = S5P_PA_TVENC + S5P_SZ_TVENC - 1,
-		.flags  = IORESOURCE_MEM,
-	},
-	[1] = {
-		.start  = S5P_PA_VP,
-		.end    = S5P_PA_VP + S5P_SZ_VP - 1,
-		.flags  = IORESOURCE_MEM,
-	},
-	[2] = {
-		.start  = S5P_PA_MIXER,
-		.end    = S5P_PA_MIXER + S5P_SZ_MIXER - 1,
-		.flags  = IORESOURCE_MEM,
-	},
-	[3] = {
-		.start  = S5P_PA_HDMI,
-		.end    = S5P_PA_HDMI + S5P_SZ_HDMI - 1,
-		.flags  = IORESOURCE_MEM,
-	},
-	[4] = {
-		.start  = S5P_I2C_HDMI_PHY,
-		.end    = S5P_I2C_HDMI_PHY + S5P_I2C_HDMI_SZ_PHY - 1,
-		.flags  = IORESOURCE_MEM,
-	},
-	[5] = {
-		.start  = IRQ_MIXER,
-		.end    = IRQ_MIXER,
-		.flags  = IORESOURCE_IRQ,
-	},
-	[6] = {
-		.start  = IRQ_HDMI,
-		.end    = IRQ_HDMI,
-		.flags  = IORESOURCE_IRQ,
-	},
-	[7] = {
-		.start  = IRQ_TVENC,
-		.end    = IRQ_TVENC,
-		.flags  = IORESOURCE_IRQ,
-	},
-	[8] = {
-		.start  = IRQ_EINT5,
-		.end    = IRQ_EINT5,
-		.flags  = IORESOURCE_IRQ,
-	}
+        [0] = {
+                .start  = S5P_PA_TVENC,
+                .end    = S5P_PA_TVENC + S5P_SZ_TVENC - 1,
+                .flags  = IORESOURCE_MEM,
+        },
+        [1] = {
+                .start  = S5P_PA_VP,
+                .end    = S5P_PA_VP + S5P_SZ_VP - 1,
+                .flags  = IORESOURCE_MEM,
+        },
+        [2] = {
+                .start  = S5P_PA_MIXER,
+                .end    = S5P_PA_MIXER + S5P_SZ_MIXER - 1,
+                .flags  = IORESOURCE_MEM,
+        },
+        [3] = {
+                .start  = S5P_PA_HDMI,
+                .end    = S5P_PA_HDMI + S5P_SZ_HDMI - 1,
+                .flags  = IORESOURCE_MEM,
+        },
+        [4] = {
+                .start  = S5P_I2C_HDMI_PHY,
+                .end    = S5P_I2C_HDMI_PHY + S5P_I2C_HDMI_SZ_PHY - 1,
+                .flags  = IORESOURCE_MEM,
+        },
+        [5] = {
+                .start  = IRQ_MIXER,
+                .end    = IRQ_MIXER,
+                .flags  = IORESOURCE_IRQ,
+        },
+        [6] = {
+                .start  = IRQ_HDMI,
+                .end    = IRQ_HDMI,
+                .flags  = IORESOURCE_IRQ,
+        },
+        [7] = {
+                .start  = IRQ_TVENC,
+                .end    = IRQ_TVENC,
+                .flags  = IORESOURCE_IRQ,
+        },
+        [8] = {
+                .start  = IRQ_EINT5,
+                .end    = IRQ_EINT5,
+                .flags  = IORESOURCE_IRQ,
+        }
 };
 
 struct platform_device s5p_device_tvout = {
@@ -529,42 +429,6 @@ struct platform_device s5p_device_g2d = {
 	.resource	= s5p_g2d_resource
 };
 EXPORT_SYMBOL(s5p_device_g2d);
-
-/* NAND Controller */
-static struct resource s3c_nand_resource[] = {
-	[0] = {
-		.start = S5P_PA_NAND,
-		.end   = S5P_PA_NAND + S5P_SZ_NAND - 1,
-		.flags = IORESOURCE_MEM,
-	}
-};
-
-struct platform_device s3c_device_nand = {
-	.name		= "nand",
-	.id		= -1,
-	.num_resources	= ARRAY_SIZE(s3c_nand_resource),
-	.resource	= s3c_nand_resource,
-};
-
-EXPORT_SYMBOL(s3c_device_nand);
-
-/* OneNAND Controller */
-static struct resource s3c_onenand_resource[] = {
-	[0] = {
-		.start = S5P_PA_ONENAND,
-		.end   = S5P_PA_ONENAND + S5P_SZ_ONENAND - 1,
-		.flags = IORESOURCE_MEM,
-	}
-};
-
-struct platform_device s3c_device_onenand = {
-	.name		= "onenand",
-	.id		= -1,
-	.num_resources	= ARRAY_SIZE(s3c_onenand_resource),
-	.resource	= s3c_onenand_resource,
-};
-
-EXPORT_SYMBOL(s3c_device_onenand);
 
 static struct resource s3cfb_resource[] = {
 	[0] = {
@@ -636,9 +500,7 @@ void __init s3cfb_set_platdata(struct s3c_platform_fb *pd)
 		s3cfb_get_clk_name(npd->clk_name);
 		npd->cfg_gpio = s3cfb_cfg_gpio;
 		npd->backlight_on = s3cfb_backlight_on;
-		npd->backlight_off = s3cfb_backlight_off;
-		npd->lcd_on = s3cfb_lcd_on;
-		npd->lcd_off = s3cfb_lcd_off;
+		npd->reset_lcd = s3cfb_reset_lcd;
 		npd->clk_on = s3cfb_clk_on;
 		npd->clk_off = s3cfb_clk_off;
 

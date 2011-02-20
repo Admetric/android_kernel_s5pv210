@@ -1001,7 +1001,7 @@ struct snd_soc_dai wm8580_dai[] = {
 		.id = WM8580_DAI_PAIFTX,
 		.capture = {
 			.stream_name = "Capture",
-			.channels_min = 1,	/* I2S dai : fix channel_min value to enable Mono recording */
+			.channels_min = 2,
 			.channels_max = 2,
 			.rates = SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT,
 			.formats = WM8580_FORMATS,
@@ -1018,30 +1018,6 @@ struct snd_soc_dai wm8580_dai[] = {
 			.rates = SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT,
 			.formats = WM8580_FORMATS,
 		},
-		.capture = {
-			.stream_name = "Capture",
-			.channels_min = 2,
-			.channels_max = 2,
-			.rates = SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT,
-			.formats = WM8580_FORMATS,
-		},
-		.ops = &wm8580_saif_dai_ops,
-	},
-	{
-		.name = "WM8580 SAIFRX",
-		.id = WM8580_DAI_SAIF,
-		.playback = {
-			.stream_name = "Playback",
-			.channels_min = 2,
-			.channels_max = 2,
-			.rates = SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT,
-			.formats = WM8580_FORMATS,
-		},
-		.ops = &wm8580_saif_dai_ops,
-	},
-	{
-		.name = "WM8580 SAIFTX",
-		.id = WM8580_DAI_SAIF,
 		.capture = {
 			.stream_name = "Capture",
 			.channels_min = 2,

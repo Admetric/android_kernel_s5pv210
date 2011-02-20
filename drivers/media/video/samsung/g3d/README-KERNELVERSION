@@ -1,0 +1,4 @@
+Because We will use kernel version 2.6.32, we need to modify REQUIRED_KERNEL_VERSION in the DDK like as below 
+
+$vi ./eurasia/eurasiacon/build/linux/s5pc110_linux/makefile.shared_conf 
+

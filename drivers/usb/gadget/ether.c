@@ -22,12 +22,8 @@
 
 /* #define VERBOSE_DEBUG */
 
-#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/utsname.h>
-#include <linux/module.h>
-#include <linux/fs.h>
-#include <linux/delay.h>
 
 #include "u_ether.h"
 

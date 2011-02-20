@@ -1,9 +1,9 @@
-/*linux/arch/arm/plat-s5p/hr-time-rtc.c
+/*linux/arch/arm/plat-s5pc11x/hr-time-rtc.c
  *
  * Copyright (c) 2010 Samsung Electronics Co., Ltd.
  * 		http://www.samsung.com
  *
- * S5P (and compatible) HRT support
+ * S5PC11X (and compatible) HRT support
  * RTC tick / System Timer combination
  *
  * This program is free software; you can redistribute it and/or modify
@@ -40,7 +40,7 @@
 #include <plat/cpu.h>
 
 static unsigned long long time_stamp;
-static unsigned long long s5p_sched_timer_overflows;
+static unsigned long long s5pc11x_sched_timer_overflows;
 static unsigned long long old_overflows;
 static cycle_t last_ticks;
 
@@ -65,16 +65,16 @@ static int tick_timer_mode;	/* 0: oneshot, 1: autoreload */
 #define RTC_DEFAULT_TICK	((RTC_CLOCK / HZ) - 1)
 /*
  * Helper functions
- * s5p_systimer_read() : Read from System timer register
- * s5p_systimer_write(): Write to System timer register
+ * s5pc11x_systimer_read() : Read from System timer register
+ * s5pc11x_systimer_write(): Write to System timer register
  *
  */
-static unsigned int s5p_systimer_read(unsigned int *reg_offset)
+static unsigned int s5pc11x_systimer_read(unsigned int *reg_offset)
 {
 	return __raw_readl(reg_offset);
 }
 
-static unsigned int s5p_systimer_write(unsigned int *reg_offset,
+static unsigned int s5pc11x_systimer_write(unsigned int *reg_offset,
 					unsigned int value)
 {
 	unsigned int temp_regs;
@@ -106,16 +106,7 @@ static unsigned int s5p_systimer_write(unsigned int *reg_offset,
 	return 0;
 }
 
-unsigned int get_rtc_cnt(void)
-{
-	unsigned int ticcnt, current_cnt;
-	ticcnt = __raw_readl(rtc_base + S3C2410_TICNT);
-	current_cnt = __raw_readl(rtc_base + S3C2410_CURTICCNT);
-
-	return (ticcnt - current_cnt);
-}
-
-static void s5p_rtc_set_tick(int enabled)
+static void s5pc11x_rtc_set_tick(int enabled)
 {
 	unsigned int tmp;
 
@@ -125,9 +116,9 @@ static void s5p_rtc_set_tick(int enabled)
 	__raw_writel(tmp, rtc_base + S3C2410_RTCCON);
 }
 
-static void s5p_tick_timer_setup(void);
+static void s5pc11x_tick_timer_setup(void);
 
-static void s5p_tick_timer_start(unsigned long load_val,
+static void s5pc11x_tick_timer_start(unsigned long load_val,
 					int autoreset)
 {
 	unsigned int tmp;
@@ -143,7 +134,7 @@ static void s5p_tick_timer_start(unsigned long load_val,
 	__raw_writel(tmp, rtc_base + S3C2410_RTCCON);
 }
 
-static inline void s5p_tick_timer_stop(void)
+static inline void s5pc11x_tick_timer_stop(void)
 {
 	unsigned int tmp;
 
@@ -154,7 +145,7 @@ static inline void s5p_tick_timer_stop(void)
 
 }
 
-static void s5p_sched_timer_start(unsigned long load_val,
+static void s5pc11x_sched_timer_start(unsigned long load_val,
 					int autoreset)
 {
 	unsigned long tcon;
@@ -167,21 +158,21 @@ static void s5p_sched_timer_start(unsigned long load_val,
 	tcnt = TICK_MAX;  /* default value for tcnt */
 
 	/* initialize system timer clock */
-	tcfg = s5p_systimer_read(S5P_SYSTIMER_TCFG);
+	tcfg = s5pc11x_systimer_read(S5P_SYSTIMER_TCFG);
 
 	tcfg &= ~S5P_SYSTIMER_TCLK_MASK;
 	tcfg |=  S5P_SYSTIMER_TCLK_USB;
 
-	s5p_systimer_write(S5P_SYSTIMER_TCFG, tcfg);
+	s5pc11x_systimer_write(S5P_SYSTIMER_TCFG, tcfg);
 
 	/* TCFG must not be changed at run-time.
 	 * If you want to change TCFG, stop timer(TCON[0] = 0)
 	 */
-	s5p_systimer_write(S5P_SYSTIMER_TCON, 0);
+	s5pc11x_systimer_write(S5P_SYSTIMER_TCON, 0);
 
 	/* read the current timer configuration bits */
-	tcon = s5p_systimer_read(S5P_SYSTIMER_TCON);
-	tcfg = s5p_systimer_read(S5P_SYSTIMER_TCFG);
+	tcon = s5pc11x_systimer_read(S5P_SYSTIMER_TCON);
+	tcfg = s5pc11x_systimer_read(S5P_SYSTIMER_TCFG);
 
 	clk = clk_get(NULL, "systimer");
 	if (IS_ERR(clk))
@@ -201,25 +192,25 @@ static void s5p_sched_timer_start(unsigned long load_val,
 		return;
 	}
 
-	s5p_systimer_write(S5P_SYSTIMER_TCFG, tcfg);
+	s5pc11x_systimer_write(S5P_SYSTIMER_TCFG, tcfg);
 
-	s5p_systimer_write(S5P_SYSTIMER_TICNTB, tcnt);
+	s5pc11x_systimer_write(S5P_SYSTIMER_TICNTB, tcnt);
 
 #if !defined(USE_SYSTIMER_IRQ)
 	/* set timer con */
 	tcon =  (S5P_SYSTIMER_START| S5P_SYSTIMER_AUTO_RELOAD);
-	s5p_systimer_write(S5P_SYSTIMER_TCON, tcon);
+	s5pc11x_systimer_write(S5P_SYSTIMER_TCON, tcon);
 #else
 	/* set timer con */
 	tcon =  S5P_SYSTIMER_INT_AUTO| S5P_SYSTIMER_START|
 			S5P_SYSTIMER_AUTO_RELOAD;
-	s5p_systimer_write(S5P_SYSTIMER_TCON, tcon);
+	s5pc11x_systimer_write(S5P_SYSTIMER_TCON, tcon);
 
 	tcon |= S5P_SYSTIMER_INT_START;
-	s5p_systimer_write(S5P_SYSTIMER_TCON, tcon);
+	s5pc11x_systimer_write(S5P_SYSTIMER_TCON, tcon);
 
 	/* Interrupt Start and Enable */
-	s5p_systimer_write(S5P_SYSTIMER_INT_CSTAT,
+	s5pc11x_systimer_write(S5P_SYSTIMER_INT_CSTAT,
 				(S5P_SYSTIMER_INT_ICNTEIE|
 					S5P_SYSTIMER_INT_INTENABLE));
 #endif
@@ -229,17 +220,17 @@ static void s5p_sched_timer_start(unsigned long load_val,
 /*
  * RTC tick : count down to zero, interrupt, reload
  */
-static int s5p_tick_set_next_event(unsigned long cycles,
+static int s5pc11x_tick_set_next_event(unsigned long cycles,
 				   struct clock_event_device *evt)
 {
 	/* printk(KERN_INFO "%d\n", cycles); */
 	if  (cycles == 0)	/* Should be larger than 0 */
 		cycles = 1;
-	s5p_tick_timer_start(cycles, 0);
+	s5pc11x_tick_timer_start(cycles, 0);
 	return 0;
 }
 
-static void s5p_tick_set_mode(enum clock_event_mode mode,
+static void s5pc11x_tick_set_mode(enum clock_event_mode mode,
 			      struct clock_event_device *evt)
 {
 	switch (mode) {
@@ -247,7 +238,7 @@ static void s5p_tick_set_mode(enum clock_event_mode mode,
 		tick_timer_mode = 1;
 		break;
 	case CLOCK_EVT_MODE_ONESHOT:
-		s5p_tick_timer_stop();
+		s5pc11x_tick_timer_stop();
 		tick_timer_mode = 0;
 		break;
 	case CLOCK_EVT_MODE_UNUSED:
@@ -257,13 +248,13 @@ static void s5p_tick_set_mode(enum clock_event_mode mode,
 
 		/* Reset sched_clock variables after sleep/wakeup */
 		last_ticks = 0;
-		s5p_sched_timer_overflows = 0;
+		s5pc11x_sched_timer_overflows = 0;
 		old_overflows = 0;
 		pending_irq = 0;
 		break;
 	case CLOCK_EVT_MODE_RESUME:
-		s5p_tick_timer_setup();
-		s5p_sched_timer_start(~0, 1);
+		s5pc11x_tick_timer_setup();
+		s5pc11x_sched_timer_start(~0, 1);
 		break;
 	}
 }
@@ -272,37 +263,37 @@ static struct clock_event_device clockevent_tick_timer = {
 	.name		= "S5PC110 event timer",
 	.features       = CLOCK_EVT_FEAT_PERIODIC | CLOCK_EVT_FEAT_ONESHOT,
 	.shift		= 32,
-	.set_next_event	= s5p_tick_set_next_event,
-	.set_mode	= s5p_tick_set_mode,
+	.set_next_event	= s5pc11x_tick_set_next_event,
+	.set_mode	= s5pc11x_tick_set_mode,
 };
 
-irqreturn_t s5p_tick_timer_interrupt(int irq, void *dev_id)
+irqreturn_t s5pc11x_tick_timer_interrupt(int irq, void *dev_id)
 {
 	struct clock_event_device *evt = &clockevent_tick_timer;
 
 	__raw_writel(S3C_INTP_TIC, rtc_base + S3C_INTP);
 	/* In case of oneshot mode */
 	if (tick_timer_mode == 0)
-		s5p_tick_timer_stop();
+		s5pc11x_tick_timer_stop();
 
 	evt->event_handler(evt);
 
 	return IRQ_HANDLED;
 }
 
-static struct irqaction s5p_tick_timer_irq = {
+static struct irqaction s5pc11x_tick_timer_irq = {
 	.name		= "rtc-tick",
 	.flags		= IRQF_DISABLED | IRQF_TIMER | IRQF_IRQPOLL,
-	.handler	= s5p_tick_timer_interrupt,
+	.handler	= s5pc11x_tick_timer_interrupt,
 };
 
-static void  s5p_init_dynamic_tick_timer(unsigned long rate)
+static void  s5pc11x_init_dynamic_tick_timer(unsigned long rate)
 {
 	tick_timer_mode = 1;
 
-	s5p_tick_timer_stop();
+	s5pc11x_tick_timer_stop();
 
-	s5p_tick_timer_start((rate / HZ) - 1, 1);
+	s5pc11x_tick_timer_start((rate / HZ) - 1, 1);
 
 	clockevent_tick_timer.mult = div_sc(rate, NSEC_PER_SEC,
 					    clockevent_tick_timer.shift);
@@ -327,58 +318,58 @@ static void  s5p_init_dynamic_tick_timer(unsigned long rate)
  * SYSTEM TIMER ... free running 32-bit clock source and scheduler clock
  * ---------------------------------------------------------------------------
  */
-irqreturn_t s5p_sched_timer_interrupt(int irq, void *dev_id)
+irqreturn_t s5pc11x_sched_timer_interrupt(int irq, void *dev_id)
 {
 	volatile unsigned int temp_cstat;
 
-	temp_cstat = s5p_systimer_read(S5P_SYSTIMER_INT_CSTAT);
+	temp_cstat = s5pc11x_systimer_read(S5P_SYSTIMER_INT_CSTAT);
 	temp_cstat |= S5P_SYSTIMER_INT_INTCNT;
 
-	s5p_systimer_write(S5P_SYSTIMER_INT_CSTAT, temp_cstat);
+	s5pc11x_systimer_write(S5P_SYSTIMER_INT_CSTAT, temp_cstat);
 
 	if (unlikely(pending_irq))
 		pending_irq = 0;
 	else
-		s5p_sched_timer_overflows++;
+		s5pc11x_sched_timer_overflows++;
 
 	return IRQ_HANDLED;
 }
 
-struct irqaction s5p_systimer_irq = {
+struct irqaction s5pc11x_systimer_irq = {
 	.name		= "System timer",
 	.flags		= IRQF_DISABLED ,
-	.handler	= s5p_sched_timer_interrupt,
+	.handler	= s5pc11x_sched_timer_interrupt,
 };
 
 
-static cycle_t s5p_sched_timer_read(void)
+static cycle_t s5pc11x_sched_timer_read(void)
 {
 
 	return (cycle_t)~__raw_readl(S5P_SYSTIMER_TICNTO);
 }
 
-struct clocksource clocksource_s5p = {
+struct clocksource clocksource_s5pc11x = {
 	.name		= "clock_source_systimer",
 	.rating		= 300,
-	.read		= s5p_sched_timer_read,
+	.read		= s5pc11x_sched_timer_read,
 	.mask		= CLOCKSOURCE_MASK(32),
 	.shift		= 20,
 	.flags		= CLOCK_SOURCE_IS_CONTINUOUS,
 };
 
-static void s5p_init_clocksource(unsigned long rate)
+static void s5pc11x_init_clocksource(unsigned long rate)
 {
 	static char err[] __initdata = KERN_ERR
 			"%s: can't register clocksource!\n";
 
-	clocksource_s5p.mult
-		= clocksource_khz2mult(rate/1000, clocksource_s5p.shift);
+	clocksource_s5pc11x.mult
+		= clocksource_khz2mult(rate/1000, clocksource_s5pc11x.shift);
 
 
-	s5p_sched_timer_start(~0, 1);
+	s5pc11x_sched_timer_start(~0, 1);
 
-	if (clocksource_register(&clocksource_s5p))
-		printk(err, clocksource_s5p.name);
+	if (clocksource_register(&clocksource_s5pc11x))
+		printk(err, clocksource_s5pc11x.name);
 }
 
 /*
@@ -396,25 +387,25 @@ unsigned long long sched_clock(void)
 	local_irq_save(irq_flags);
 
 	if (likely(sched_timer_running)) {
-		overflow_cnt = (s5p_sched_timer_overflows - old_overflows);
-		ticks = s5p_sched_timer_read();
+		overflow_cnt = (s5pc11x_sched_timer_overflows - old_overflows);
+		ticks = s5pc11x_sched_timer_read();
 
 		if (overflow_cnt) {
 			increment = 
 				clocksource_cyc2ns((overflow_cnt - 1),
-				clocksource_s5p.mult,clocksource_s5p.shift);
+				clocksource_s5pc11x.mult,clocksource_s5pc11x.shift);
 		} else {
 			if (unlikely(last_ticks > ticks)) {
 				pending_irq = 1;
-				s5p_sched_timer_overflows++;
+				s5pc11x_sched_timer_overflows++;
 			}	
 		}
-		elapsed_ticks = (ticks - last_ticks) & clocksource_s5p.mask;
+		elapsed_ticks = (ticks - last_ticks) & clocksource_s5pc11x.mask;
 
 		time_stamp += clocksource_cyc2ns(elapsed_ticks,
-			clocksource_s5p.mult,clocksource_s5p.shift);
+			clocksource_s5pc11x.mult,clocksource_s5pc11x.shift);
 
-		old_overflows = s5p_sched_timer_overflows;
+		old_overflows = s5pc11x_sched_timer_overflows;
 		last_ticks = ticks;
 	}
 	local_irq_restore(irq_flags);
@@ -425,7 +416,7 @@ unsigned long long sched_clock(void)
 /*
  *  Event/Sched Timer initialization
  */
-static void s5p_timer_setup(void)
+static void s5pc11x_timer_setup(void)
 {
 	unsigned long rate;
 	/* Setup event timer using XrtcXTI */
@@ -436,7 +427,7 @@ static void s5p_timer_setup(void)
 		panic("failed to get clock for event timer");
 
 	rate = clk_get_rate(clk_event);
-	s5p_init_dynamic_tick_timer(rate);
+	s5pc11x_init_dynamic_tick_timer(rate);
 
 	/* Setup sched-timer using XusbXTI */
 	if (clk_sched == NULL)
@@ -444,38 +435,38 @@ static void s5p_timer_setup(void)
 	if (IS_ERR(clk_sched))
 		panic("failed to get clock for sched-timer");
 	rate = clk_get_rate(clk_sched);
-	s5p_init_clocksource(rate);
+	s5pc11x_init_clocksource(rate);
 }
 
 
-static void s5p_tick_timer_setup(void)
+static void s5pc11x_tick_timer_setup(void)
 {
 	unsigned long rate;
 
 	rate = clk_get_rate(clk_event);
-	s5p_tick_timer_start((rate / HZ) - 1, 1);
+	s5pc11x_tick_timer_start((rate / HZ) - 1, 1);
 }
 
 
-static void __init s5p_timer_init(void)
+static void __init s5pc11x_timer_init(void)
 {
 	/* Initialize variables before starting each timers */
 	last_ticks = 0;
-	s5p_sched_timer_overflows = 0;
+	s5pc11x_sched_timer_overflows = 0;
 	old_overflows = 0;
 	time_stamp = 0;
 	sched_timer_running = 0;
 	pending_irq = 0;
 
-	s5p_timer_setup();
-	setup_irq(IRQ_RTC_TIC, &s5p_tick_timer_irq);
+	s5pc11x_timer_setup();
+	setup_irq(IRQ_RTC_TIC, &s5pc11x_tick_timer_irq);
 #if defined(USE_SYSTIMER_IRQ)
-	setup_irq(IRQ_SYSTIMER, &s5p_systimer_irq);
+	setup_irq(IRQ_SYSTIMER, &s5pc11x_systimer_irq);
 #endif
 }
 
 
 struct sys_timer s5p_systimer = {
-	.init		= s5p_timer_init,
+	.init		= s5pc11x_timer_init,
 };
 

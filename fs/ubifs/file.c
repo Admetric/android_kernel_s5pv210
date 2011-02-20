@@ -1389,6 +1389,7 @@ static ssize_t ubifs_aio_write(struct kiocb *iocb, const struct iovec *iov,
 			       unsigned long nr_segs, loff_t pos)
 {
 	int err;
+	ssize_t ret;
 	struct inode *inode = iocb->ki_filp->f_mapping->host;
 	struct ubifs_info *c = inode->i_sb->s_fs_info;
 
@@ -1396,7 +1397,17 @@ static ssize_t ubifs_aio_write(struct kiocb *iocb, const struct iovec *iov,
 	if (err)
 		return err;
 
-	return generic_file_aio_write(iocb, iov, nr_segs, pos);
+	ret = generic_file_aio_write(iocb, iov, nr_segs, pos);
+	if (ret < 0)
+		return ret;
+
+	if (ret > 0 && (IS_SYNC(inode) || iocb->ki_filp->f_flags & O_SYNC)) {
+		err = ubifs_sync_wbufs_by_inode(c, inode);
+		if (err)
+			return err;
+	}
+
+	return ret;
 }
 
 static int ubifs_set_page_dirty(struct page *page)

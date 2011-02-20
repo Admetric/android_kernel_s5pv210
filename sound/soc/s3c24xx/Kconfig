@@ -1,6 +1,6 @@
 config SND_S3C24XX_SOC
 	tristate "Samsung S5P Audio Drivers"
-	depends on ARCH_S3C2410 || ARCH_S3C64XX || ARCH_S5PV210 || ARCH_S5PC1XX
+	depends on ARCH_S3C2410 || ARCH_S3C64XX || ARCH_S5PV210
 	select S3C64XX_DMA if ARCH_S3C64XX
 	help
 	  Say Y or M if you want to add support for codecs attached to
@@ -16,11 +16,6 @@ config SND_S3C_I2SV2_SOC
 
 config SND_S3C_SOC_PCM
 	tristate
-
-config SND_S5P_SOC_SPDIF
-	tristate
-	select SND_SOC_SPDIF
-	select S3C2410_DMA
 
 config SND_S3C2412_SOC_I2S
 	tristate
@@ -156,9 +151,8 @@ config SND_SMDK_WM8580_PCM
 	help
 	  Say Y if you want to add support for SoC PCM audio on the SMDK.
 
-config SND_SOC_SMDK_SPDIF
-	tristate "SoC S/PDIF Audio support on SMDK"
-	depends on SND_S3C24XX_SOC && (MACH_SMDKV210 || MACH_SMDKC110)
-	select SND_S5P_SOC_SPDIF
-	help
-	  Say Y if you want to add support for SoC S/PDIF audio on the SMDK.
+config  SND_SMDKV210_RT5610
+	tristate "RT5610 AC97 on SMDKPV210"
+	depends on ARCH_S5PV210
+	select SND_S3C_SOC_AC97
+	select SND_SOC_RT5610

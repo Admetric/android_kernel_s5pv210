@@ -34,7 +34,6 @@ extern struct platform_device s3c64xx_device_spi1;
 
 extern struct platform_device s3c64xx_device_pcm0;
 extern struct platform_device s3c64xx_device_pcm1;
-extern struct platform_device s3c64xx_device_pcm2;
 
 extern struct platform_device s3c64xx_device_ac97;
 
@@ -77,12 +76,9 @@ extern struct platform_device s3c_device_spi1;
 extern struct platform_device s3c_device_hwmon;
 
 extern struct platform_device s3c_device_nand;
-extern struct platform_device s3c_device_onenand;
 extern struct platform_device s3c_device_cfcon;
 
 extern struct platform_device s3c_device_usbgadget;
-extern struct platform_device s3c_device_android_usb;
-extern struct platform_device s3c_device_usb_mass_storage;
 extern struct platform_device s3c_device_usb_hsotg;
 
 /* s3c2440 specific devices */
@@ -105,4 +101,3 @@ extern struct platform_device s5pc11x_device_mdma;
 extern struct platform_device s5pc11x_device_pdma0;
 extern struct platform_device s5pc11x_device_pdma1;
 
-extern struct platform_device s5p_device_spdif;

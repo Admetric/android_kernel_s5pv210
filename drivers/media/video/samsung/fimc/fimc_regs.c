@@ -469,8 +469,6 @@ int fimc_hwset_output_colorspace(struct fimc_control *ctrl, u32 pixelformat)
 		cfg |= S3C_CITRGFMT_OUTFORMAT_YCBCR422_1PLANE;
 		break;
 
-	case V4L2_PIX_FMT_NV16:		/* fall through */
-	case V4L2_PIX_FMT_NV61:		/* fall through */
 	case V4L2_PIX_FMT_YUV422P:
 		cfg |= S3C_CITRGFMT_OUTFORMAT_YCBCR422;
 		break;
@@ -478,7 +476,9 @@ int fimc_hwset_output_colorspace(struct fimc_control *ctrl, u32 pixelformat)
 	case V4L2_PIX_FMT_YUV420:	/* fall through */
 	case V4L2_PIX_FMT_NV12:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:	/* fall through */
-	case V4L2_PIX_FMT_NV21:		
+	case V4L2_PIX_FMT_NV21:		/* fall through */
+	case V4L2_PIX_FMT_NV16:		/* fall through */
+	case V4L2_PIX_FMT_NV61:
 		cfg |= S3C_CITRGFMT_OUTFORMAT_YCBCR420;
 		break;
 
@@ -613,7 +613,7 @@ int fimc_hwset_output_yuv(struct fimc_control *ctrl, u32 pixelformat)
 
 	case V4L2_PIX_FMT_NV21:		/* fall through */
 	case V4L2_PIX_FMT_NV61:
-		cfg |= S3C_CIOCTRL_ORDER2P_LSB_CRCB;
+		cfg |= S3C_CIOCTRL_ORDER2P_MSB_CRCB;
 		cfg |= S3C_CIOCTRL_YCBCR_2PLANE;
 		break;
 
@@ -733,7 +733,7 @@ int fimc43_hwset_scaler(struct fimc_control *ctrl, struct fimc_scaler *sc)
 	cfg_ext &= ~S3C_CIEXTEN_MAINHORRATIO_EXT_MASK;
 	cfg_ext &= ~S3C_CIEXTEN_MAINVERRATIO_EXT_MASK;
 
-	cfg_ext |= S3C_CIEXTEN_MAINHORRATIO_EXT(sc->main_hratio);
+	cfg_ext |= S3C_CIEXTEN_MAINHORRATIO_EXT(sc->main_vratio);
 	cfg_ext |= S3C_CIEXTEN_MAINVERRATIO_EXT(sc->main_vratio);
 
 	writel(cfg_ext, ctrl->regs + S3C_CIEXTEN);
@@ -769,7 +769,7 @@ int fimc50_hwset_scaler(struct fimc_control *ctrl, struct fimc_scaler *sc)
 	cfg_ext &= ~S3C_CIEXTEN_MAINHORRATIO_EXT_MASK;
 	cfg_ext &= ~S3C_CIEXTEN_MAINVERRATIO_EXT_MASK;
 
-	cfg_ext |= S3C_CIEXTEN_MAINHORRATIO_EXT(sc->main_hratio);
+	cfg_ext |= S3C_CIEXTEN_MAINHORRATIO_EXT(sc->main_vratio);
 	cfg_ext |= S3C_CIEXTEN_MAINVERRATIO_EXT(sc->main_vratio);
 
 	writel(cfg_ext, ctrl->regs + S3C_CIEXTEN);
@@ -1065,7 +1065,6 @@ int fimc_hwset_input_colorspace(struct fimc_control *ctrl, u32 pixelformat)
 	switch (pixelformat) {
 	case V4L2_PIX_FMT_YUV420:	/* fall through */
 	case V4L2_PIX_FMT_NV12:		/* fall through */
-	case V4L2_PIX_FMT_NV21:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:
 		cfg |= S3C_MSCTRL_INFORMAT_YCBCR420;
 		break;
@@ -1103,10 +1102,6 @@ int fimc_hwset_input_yuv(struct fimc_control *ctrl, u32 pixelformat)
 	case V4L2_PIX_FMT_NV12:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:
 		cfg |= S3C_MSCTRL_ORDER2P_LSB_CBCR;
-		cfg |= S3C_MSCTRL_C_INT_IN_2PLANE;
-		break;
-	case V4L2_PIX_FMT_NV21:		/* fall through */
-		cfg |= S3C_MSCTRL_ORDER2P_LSB_CRCB;
 		cfg |= S3C_MSCTRL_C_INT_IN_2PLANE;
 		break;
 	case V4L2_PIX_FMT_RGB565:	/* fall through */
@@ -1175,25 +1170,6 @@ int fimc_hwset_stop_input_dma(struct fimc_control *ctrl)
 	writel(cfg, ctrl->regs + S3C_MSCTRL);
 
 	return 0;
-}
-
-void fimc_wait_stop_processing(struct fimc_control *ctrl)
-{
-	fimc_hwget_frame_end(ctrl);
-	fimc_hwget_last_frame_end(ctrl);
-}
-
-void fimc_hwset_stop_processing(struct fimc_control *ctrl)
-{
-	fimc_wait_stop_processing(ctrl);
-
-	fimc_hwset_stop_scaler(ctrl);
-	fimc_hwset_disable_capture(ctrl);
-	fimc_hwset_stop_input_dma(ctrl);
-
-	/* We need to wait for sometime after processing is stopped.
-	 * This is required for obtaining clean buffer for DMA processing. */
-	fimc_wait_stop_processing(ctrl);
 }
 
 int fimc40_hwset_output_offset(struct fimc_control *ctrl, u32 pixelformat,
@@ -1390,7 +1366,6 @@ int fimc40_hwset_input_offset(struct fimc_control *ctrl, u32 pixelformat,
 			cfg_y |= S3C_CIIYOFF_VERTICAL(crop->top);
 			break;
 		case V4L2_PIX_FMT_NV12:		/* fall through */
-		case V4L2_PIX_FMT_NV21:		/* fall through */
 		case V4L2_PIX_FMT_NV12T:
 			cfg_y |= S3C_CIIYOFF_HORIZONTAL(crop->left);
 			cfg_y |= S3C_CIIYOFF_VERTICAL(crop->top);
@@ -1430,7 +1405,6 @@ int fimc50_hwset_input_offset(struct fimc_control *ctrl, u32 pixelformat,
 			cfg_y |= S3C_CIIYOFF_VERTICAL(crop->top);
 			break;
 		case V4L2_PIX_FMT_NV12: /* fall through*/
-		case V4L2_PIX_FMT_NV21: /* fall through*/
 		case V4L2_PIX_FMT_NV12T:
 			cfg_y |= S3C_CIIYOFF_HORIZONTAL(crop->left);
 			cfg_y |= S3C_CIIYOFF_VERTICAL(crop->top);
@@ -1625,32 +1599,4 @@ int fimc_hwset_input_lineskip(struct fimc_control *ctrl)
 int fimc_hw_reset_camera(struct fimc_control *ctrl)
 {
 	return 0;
-}
-
-/* Above FIMC v5.1 */
-int fimc_hwset_output_buf_sequence(struct fimc_control *ctrl, u32 shift, u32 enable)
-{
-	u32 cfg = readl(ctrl->regs + S3C_CIFCNTSEQ);
-	u32 mask = 0x00000001 << shift;
-
-	cfg &= ~mask;
-	cfg |= enable << shift;
-	writel(cfg, ctrl->regs + S3C_CIFCNTSEQ);
-	return 0;
-}
-
-/* Above FIMC v5.1 */
-int fimc_hwget_before_frame_count(struct fimc_control *ctrl)
-{
-	u32 before = readl(ctrl->regs + S3C_CISTATUS2);
-	before &= 0x00001f80; /* [12:7] FrameCnt_before */
-	return before >> 7;
-}
-
-/* Above FIMC v5.1 */
-int fimc_hwget_present_frame_count(struct fimc_control *ctrl)
-{
-	u32 present = readl(ctrl->regs + S3C_CISTATUS2);
-	present &= 0x0000003f; /* [5:0] FrameCnt_present */
-	return present >> 0;
 }

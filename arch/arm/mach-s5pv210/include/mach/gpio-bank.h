@@ -442,14 +442,6 @@
 #define S5PV210_ETC4PUD			(S5PV210_ETC4_BASE + 0x08)
 #define S5PV210_ETC4DRV			(S5PV210_ETC4_BASE + 0x0c)
 
-
-#define S5PV210_GPD_0_0_TOUT_0  (0x2 << 0)
-#define S5PV210_GPD_0_1_TOUT_1  (0x2 << 4)
-#define S5PV210_GPD_0_2_TOUT_2  (0x2 << 8)
-#define S5PV210_GPD_0_3_TOUT_3  (0x2 << 12)
-
-
-
 #define S5PV210_GPH1_4_HDMI_CEC		(0x4 << 16)
 #define S5PV210_GPH1_4_EXT_INT31_4	(0xf << 16)
 

@@ -13,12 +13,6 @@
 #define KHZ_T		1000
 #define MPU_CLK		"armclk"
 
-enum S5PV210_CPUFREQ_MODE {
-    MAXIMUM_TABLE = 0,
-    NORMAL_TABLE,
-    RESTRICT_TABLE,
-};
-
 /*
  * APLL M,P,S value for target frequency
  **/
@@ -32,7 +26,7 @@ enum perf_level {
 	L1,
 	L2,
 	L3,
-	L4,
+//	L4,
 };
 
 struct s5pv210_domain_freq {
@@ -58,4 +52,3 @@ struct s5pv210_dvs_conf {
 	unsigned long		int_volt;	/* uV */
 };
 
-extern void s5pv210_set_cpufreq_level(unsigned int flag);
