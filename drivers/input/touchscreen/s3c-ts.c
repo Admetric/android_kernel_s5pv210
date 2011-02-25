@@ -159,8 +159,8 @@ static irqreturn_t stylus_updown(int irqno, void *param)
 #ifdef CONFIG_TOUCHSCREEN_S3C_DEBUG
 //       printk(KERN_INFO "\t\t%s:   %c\n", __func__, updown ? 'D' : 'U');
        printk("\t\t%s:   %c\n", __func__, updown ? 'D' : 'U');
-#else
-#warning
+//#else
+//#warning
 #endif
 
 	/* TODO we should never get an interrupt with updown set while
