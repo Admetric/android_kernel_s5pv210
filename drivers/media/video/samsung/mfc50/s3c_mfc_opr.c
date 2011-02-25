@@ -1,4 +1,3 @@
-/*
 /* linux/drivers/media/video/samsung/mfc50/s3c_mfc_opr.c
  *
  * Copyright (c) 2010 Samsung Electronics Co., Ltd.
@@ -1453,7 +1452,7 @@ enum SSBSIP_MFC_ERROR_CODE s3c_mfc_exe_decode(struct s3c_mfc_inst_ctx *mfc_ctx,
 	ret = s3c_mfc_decode_one_frame(mfc_ctx, dec_arg, &consumed_strm_size);
 	if (ret == MFC_RET_OK) {
 		s3c_mfc_check_change_resolution(mfc_ctx, dec_arg);
-	}	
+	}
 #if 1
 	/* MFC fw 10/30 */
 	if (((mfc_ctx->IsPackedPB) &&
@@ -1813,10 +1812,10 @@ void s3c_mfc_check_change_resolution(struct s3c_mfc_inst_ctx *mfc_ctx,
 						struct s3c_mfc_dec_exe_arg_t *args)
 {
 	if ((READL(S3C_FIMV_SI_DISPLAY_STATUS)&0x3) == DECODING_ONLY ) {
-		if((READL(S3C_FIMV_SI_DISPLAY_STATUS)&0x30) == (RES_INCREASED<<4) || 
+		if((READL(S3C_FIMV_SI_DISPLAY_STATUS)&0x30) == (RES_INCREASED<<4) ||
 		    (READL(S3C_FIMV_SI_DISPLAY_STATUS)&0x30) == (REG_DECREASED<<4)) {
 			mfc_ctx->resoultion_status = RESOLUTION_SET_CHANGE;
-			mfc_ctx->input_strm_buf = 
+			mfc_ctx->input_strm_buf =
 				(unsigned char*)__phys_to_virt(args->in_strm_buf);
 		}
 	}
