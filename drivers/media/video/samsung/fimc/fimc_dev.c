@@ -601,7 +601,7 @@ static inline int fimc_mmap_out_buf(struct file *filp, struct vm_area_struct *vm
 	if (ret != 0)
 		fimc_err("%s: remap_pfn_range fail.\n", __func__);
 
-	fimc_dbg("%s: size = %d/%d, mmap from %x to = %p\n", __func__, size, ctrl->mem.size, ctrl->mem.base, vma->vm_start);
+	fimc_dbg("%s: size = %lu/%d, mmap from %x to = %lu\n", __func__, size, ctrl->mem.size, ctrl->mem.base, vma->vm_start);
 	return ret;
 }
 
@@ -957,7 +957,7 @@ static int fimc_release(struct file *filp)
 	pdata = to_fimc_plat(ctrl->dev);
 
 	atomic_dec(&ctrl->in_use);
-	
+
 	/* FIXME: turning off actual working camera */
 	if (ctrl->cam) {
 		/* shutdown the MCLK */
@@ -1156,7 +1156,7 @@ static int fimc_init_global(struct platform_device *pdev)
 /*
  * Assign v4l2 device and subdev to fimc
  * it is called per every fimc ctrl registering
- */ 
+ */
 static int fimc_configure_subdev(struct	platform_device	*pdev, int id)
 {
 	struct s3c_platform_fimc *pdata;
@@ -1412,7 +1412,7 @@ err_v4l2:
 
 err_fimc:
 	fimc_unregister_controller(pdev);
-	
+
 err_alloc:
 	kfree(fimc_dev);
 	return -EINVAL;
@@ -1662,9 +1662,9 @@ static inline int fimc_resume_out(struct fimc_control *ctrl)
 		ctrl->status = FIMC_STREAMON;
 	else if ((state & FIMC_STREAMON_IDLE) == FIMC_STREAMON_IDLE)
 		ctrl->status = FIMC_STREAMON_IDLE;
-	else 
+	else
 		ctrl->status = FIMC_STREAMOFF;
-		
+
 	return 0;
 }
 
