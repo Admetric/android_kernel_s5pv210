@@ -28,10 +28,6 @@
 #include "s5p_tv.h"
 #include "cec.h"
 
-#ifdef CONFIG_TVOUT_DEBUG
-#define	CECDEBUG
-#endif
-
 #ifdef CECDEBUG
 #define CECIFPRINTK(fmt, args...) \
 	printk(KERN_INFO "\t[CEC_IF] %s: " fmt, __func__ , ## args)
@@ -65,7 +61,8 @@ void __s5p_cec_set_rx_state(enum cec_state state)
 
 int s5p_cec_open(struct inode *inode, struct file *file)
 {
-	s5p_tv_clk_gate(true);
+	// Clocks are enabled by s5p_handle_cable()
+	//s5p_tv_clk_gate(true);
 
 	hdmi_on = true;
 
@@ -86,7 +83,8 @@ int s5p_cec_open(struct inode *inode, struct file *file)
 
 int s5p_cec_release(struct inode *inode, struct file *file)
 {
-	s5p_tv_clk_gate(false);
+	// Clocks are disabled by s5p_handle_cable()
+	//s5p_tv_clk_gate(false);
 
 	hdmi_on = false;
 

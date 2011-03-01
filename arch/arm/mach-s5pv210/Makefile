@@ -12,7 +12,7 @@ obj-				:=
 
 # Core support for S5PV210 system
 
-obj-$(CONFIG_CPU_S5PV210)	+= cpu.o init.o clock.o gpio.o dma.o pd.o button-smdkv210.o irq-eint-group.o irq-eint.o
+obj-$(CONFIG_CPU_S5PV210)	+= cpu.o init.o clock.o gpio.o dma.o pd.o irq-eint-group.o irq-eint.o
 
 # machine support
 
@@ -32,3 +32,5 @@ obj-$(CONFIG_S5PV210_SETUP_FIMC0)	+= setup-fimc0.o
 obj-$(CONFIG_S5PV210_SETUP_FIMC1)	+= setup-fimc1.o
 obj-$(CONFIG_S5PV210_SETUP_FIMC2)	+= setup-fimc2.o
 obj-$(CONFIG_S5PV210_SETUP_CSIS)	+= setup-csis.o
+
+obj-$(CONFIG_CPU_IDLE)		+= cpuidle.o idle2.o

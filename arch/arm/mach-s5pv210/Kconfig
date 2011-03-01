@@ -37,12 +37,13 @@ config MACH_SMDKV210
 config MACH_SMDKC110
 	bool "SMDKC110"
 	select CPU_S5PV210
-	select ARCH_SPARSEMEM_ENABLE
+	select DISCONTIGMEM
 	select S3C_DEV_HSMMC
 	select S3C_DEV_HSMMC1 if !S5PV210_SD_CH0_8BIT
 	select S3C_DEV_HSMMC2
 	select S3C_DEV_HSMMC3 if !S5PV210_SD_CH2_8BIT
 	select S5PV210_SETUP_SDHCI
+	select ARCH_DISCONTIGMEM_ENABLE
 	select PCI
 	help
 	  Machine support for Samsung SMDKC110
@@ -175,8 +176,3 @@ config S5PV210_ADC
           ADC (A/D Conversion) driver for Samsung S5PV210.
 
 endif
-
-config CPU_FREQ_S5PV210
-	bool "S5PV210 CPU Frequency scaling"
-	depends on CPU_S5PV210 && CPU_FREQ
-

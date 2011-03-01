@@ -16,13 +16,14 @@
 #include <linux/version.h>
 #include <linux/io.h>
 #include <linux/uaccess.h>
+#include <linux/delay.h>
 
 #include <media/v4l2-common.h>
 #include <media/v4l2-ioctl.h>
 
 #include "s5p_tv.h"
 
-#ifdef CONFIG_TVOUT_DEBUG
+#ifdef COFIG_TVOUT_DBG
 #define S5P_V4L2_DEBUG 1
 #endif
 
@@ -34,6 +35,7 @@
 #endif
 
 
+extern int s5p_tv_clk_gate(bool on);
 
 /* 0 - hdcp stopped, 1 - hdcp started, 2 - hdcp reset */
 u8 hdcp_protocol_status;
@@ -522,7 +524,7 @@ static int s5p_tv_v4l2_s_fmt_vid_out(struct file *file, void *fh,
 
 			s5ptv_status.field_id = VPROC_TOP_FIELD;
 
-			if (s5ptv_status.vp_layer_enable) {
+			if ((s5ptv_status.hpd_status) && s5ptv_status.vp_layer_enable) {
 				struct s5p_video_img_address temp_addr;
 				struct s5p_img_size	img_size;
 
@@ -569,7 +571,7 @@ static int s5p_tv_v4l2_s_fmt_vid_out(struct file *file, void *fh,
 			else
 				s5ptv_status.field_id = VPROC_TOP_FIELD;
 
-			if (s5ptv_status.vp_layer_enable) {
+			if ((s5ptv_status.hpd_status) && s5ptv_status.vp_layer_enable) {
 				struct s5p_video_img_address temp_addr;
 				struct s5p_img_size	img_size;
 
@@ -652,7 +654,7 @@ static int s5p_tv_v4l2_s_fmt_vid_out_overlay(struct file *file, void *fh,
 			   s5ptv_status.vl_basic_param.src_width,
 			   s5ptv_status.vl_basic_param.src_height);
 
-		if (s5ptv_status.vp_layer_enable) {
+		if ((s5ptv_status.hpd_status) && s5ptv_status.vp_layer_enable) {
 			struct s5p_img_offset	img_offset;
 			struct s5p_img_size	img_size;
 
@@ -690,11 +692,30 @@ static int s5p_tv_v4l2_overlay(struct file *file, void *fh, unsigned int i)
 	int	start = i;
 	V4L2PRINTK("(0x%08x)++\n", i);
 
+    // tv dirver is on suspend mode
+    // Just set the status variable on this function
+    // overlay will be enabled or disabled on resume or handle_cable function according to this status variable
+    if(s5ptv_status.suspend_status == true || !(s5ptv_status.hpd_status))
+    {
+        if(start)
+            s5ptv_status.grp_layer_enable[layer->index] = true;
+        else
+            s5ptv_status.grp_layer_enable[layer->index] = false;
+
+	    V4L2PRINTK("()it's on suspend mode or hdmi cable is not inserted--\n");
+        return 0;
+            
+    }   
+    else
+    {
 	if (start)
 		_s5p_grp_start(layer->index);
 	else
 		_s5p_grp_stop(layer->index);
+    }
 
+
+	V4L2PRINTK("()--\n");
 	return 0;
 }
 
@@ -757,14 +778,51 @@ static int s5p_tv_v4l2_streamon(struct file *file, void *fh,
 
 	V4L2PRINTK("(0x%08x)++\n", i);
 
+    // tv dirver is on suspend mode or hdmi cable is not inserted
+    // Just set the status variable on this function
+    // overlay will be enabled or disabled on resume or handle_cable function according to this status variable
+    if(s5ptv_status.suspend_status == true || !(s5ptv_status.hpd_status))
+    {
 	switch (i) {
 		/* Vlayer */
 
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
 		_s5p_vlayer_init_param(0);
+                s5ptv_status.vp_layer_enable = true;
+                break;
+                // GRP0/1
+
+            case V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY :
+                s5ptv_status.grp_layer_enable[layer->index] = true;
+                break;
+
+            default :
+                break;
+        }
+	    V4L2PRINTK("()it's on suspend mode or hdmi cable is not inserted --\n");
+        return 0;
+    }
+
+	switch (i) {
+		// Vlayer
+        case V4L2_BUF_TYPE_VIDEO_OUTPUT :
+            if(!(s5ptv_status.vp_layer_enable))
+            {
+                _s5p_vlayer_init_param(0);
 		_s5p_vlayer_start();
 		s5ptv_status.vp_layer_enable = true;
-		break;
+#if 0
+		mdelay(50);
+		if (s5ptv_status.hdcp_en)
+		{
+			__s5p_start_hdcp();
+		}
+#endif
+            }
+            else
+                return -EBUSY;
+
+	    break;
 		/* GRP0/1 */
 
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY:
@@ -786,6 +844,32 @@ static int s5p_tv_v4l2_streamoff(struct file *file, void *fh,
 	struct s5p_tv_vo *layer = (struct s5p_tv_vo *)fh;
 
 	V4L2PRINTK("(0x%08x)++\n", i);
+
+    // tv driver is on suspend mode or hdmi cable is not inserted 
+    // Each layer was disabled on suspend function already. 
+    // Just set the status variable on this function 
+    // Each layer will be enabled or disabled on resume or handle_cable function according to this status variable
+    if( s5ptv_status.suspend_status == true || !(s5ptv_status.hpd_status))
+    {
+        switch (i) {
+            // Vlayer
+
+            case V4L2_BUF_TYPE_VIDEO_OUTPUT :
+                s5ptv_status.vp_layer_enable = false;
+                break;
+                // GRP0/1
+
+            case V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY :
+                s5ptv_status.grp_layer_enable[layer->index] = false;
+                break;
+
+            default :
+                break;
+        }
+	    V4L2PRINTK("()it's on suspend mode or hdmi cable is not inserted--\n");
+        return 0;
+        
+    }
 
 	switch (i) {
 		/* Vlayer */
@@ -1036,6 +1120,14 @@ static int s5p_tv_v4l2_s_output(struct file *file, void *fh, unsigned int i)
 		break;
 	}
 
+    if(s5ptv_status.tvout_param.out_mode != TVOUT_OUTPUT_HDMI && s5ptv_status.tvout_param.out_mode != TVOUT_OUTPUT_HDMI_RGB)
+    {
+        if(!(s5ptv_status.hpd_status))
+            s5p_tv_clk_gate(true);
+
+        s5ptv_status.hpd_status = 1;
+    }
+
 	_s5p_tv_if_set_disp();
 
 	V4L2PRINTK("()--\n");
@@ -1234,7 +1326,7 @@ static int s5p_tv_v4l2_s_crop(struct file *file, void *fh, struct v4l2_crop *a)
 		s5ptv_status.vl_basic_param.dest_width = crop->c.width;
 		s5ptv_status.vl_basic_param.dest_height = crop->c.height;
 
-		if (s5ptv_status.vp_layer_enable) {
+		if ((s5ptv_status.hpd_status) && s5ptv_status.vp_layer_enable) {
 			struct s5p_img_size img_size;
 			struct s5p_img_offset img_offset;
 			img_size.img_width = crop->c.width;
@@ -1323,7 +1415,7 @@ static int s5p_tv_v4l2_s_parm_v(struct file *file, void *fh,
 		   s5ptv_status.vl_basic_param.src_width,
 		   s5ptv_status.vl_basic_param.src_height);
 
-	if (s5ptv_status.vp_layer_enable) {
+	if ((s5ptv_status.hpd_status) && s5ptv_status.vp_layer_enable) {
 		struct s5p_img_offset	img_offset;
 		struct s5p_img_size	img_size;
 
@@ -1445,6 +1537,9 @@ static int s5p_tv_v4l2_s_parm_vo(struct file *file, void *fh,
 #define VIDIOC_HDCP_ENABLE _IOWR('V', 100, unsigned int)
 #define VIDIOC_HDCP_STATUS _IOR('V', 101, unsigned int)
 #define VIDIOC_HDCP_PROT_STATUS _IOR('V', 102, unsigned int)
+#define VIDIOC_INIT_AUDIO _IOR('V', 103, unsigned int)
+#define VIDIOC_AV_MUTE _IOR('V', 104, unsigned int)
+#define VIDIOC_G_AVMUTE _IOR('V', 105, unsigned int)
 
 long s5p_tv_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -1540,6 +1635,42 @@ long s5p_tv_v_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 
+	case VIDIOC_INIT_AUDIO:
+		s5ptv_status.hdmi_audio_type = (unsigned int) arg;
+
+		if (arg) {
+			s5p_hdmi_set_audio(true);
+			if (s5ptv_status.tvout_output_enable)
+				s5p_hdmi_audio_enable(true);
+		} else {
+			s5p_hdmi_set_audio(false);
+			if (s5ptv_status.tvout_output_enable)
+				s5p_hdmi_audio_enable(false);
+
+		}
+
+		return 0;
+
+	case VIDIOC_AV_MUTE:
+		if (arg) {
+			s5ptv_status.hdmi_audio_type = HDMI_AUDIO_NO;
+			if (s5ptv_status.tvout_output_enable) {
+				s5p_hdmi_audio_enable(false);
+				__s5p_hdmi_video_set_bluescreen(true, 0, 0, 0);
+			}
+			s5p_hdmi_set_mute(true);
+		} else {
+			s5ptv_status.hdmi_audio_type = HDMI_AUDIO_PCM;
+			if (s5ptv_status.tvout_output_enable) {
+				s5p_hdmi_audio_enable(true);
+				__s5p_hdmi_video_set_bluescreen(false, 0, 0, 0);
+			}
+			s5p_hdmi_set_mute(false);
+		}
+		return 0;
+	case VIDIOC_G_AVMUTE:
+		return s5p_hdmi_get_mute();
+
 	case VIDIOC_S_FMT: {
 		struct v4l2_format *f = (struct v4l2_format *)arg;
 		void *fh = file->private_data;
@@ -1550,18 +1681,21 @@ long s5p_tv_v_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		return ret;
 	}
 
-	case VIDIOC_HDCP_ENABLE:
-		s5ptv_status.hdcp_en = (unsigned int) arg;
+	case VIDIOC_HDCP_ENABLE: {
+
+		unsigned int *hdcp_en = (unsigned int *)arg;
+		s5ptv_status.hdcp_en = *hdcp_en;
 		V4L2PRINTK("HDCP status is %s\n",
 		       s5ptv_status.hdcp_en ? "enabled" : "disabled");
 		return 0;
+	}
 
 	case VIDIOC_HDCP_STATUS: {
+		
+		unsigned int *status = (unsigned int *)arg;
 
-		unsigned int *status = (unsigned int *)&arg;
-
-		*status = 1;
-
+		*status = s5ptv_status.hpd_status;
+		
 		V4L2PRINTK("HPD status is %s\n",
 		       s5ptv_status.hpd_status ? "plugged" : "unplugged");
 		return 0;
@@ -1638,6 +1772,13 @@ long s5p_tv_vo_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		return s5p_tv_v4l2_g_fmt_vid_out_overlay(file, fh, f);
 	}
 
+	break;
+
+	case VIDIOC_S_BASEADDR: {
+		unsigned int base_addr = *((unsigned int *)arg);
+//		printk("VIDIOC_S_BASEADDR: 0x%08x\n", base_addr);
+		return __s5p_vm_set_grp_base_address(0, base_addr);
+	}
 	break;
 
 	default:

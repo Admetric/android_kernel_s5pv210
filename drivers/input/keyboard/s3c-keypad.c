@@ -50,78 +50,76 @@ static struct timer_list keypad_timer;
 static int is_timer_on = FALSE;
 static struct clk *keypad_clock;
 
-static unsigned prevmask[KEYPAD_COLUMNS];
+static u32 keymask[KEYPAD_COLUMNS];
+static u32 prevmask[KEYPAD_COLUMNS];
 
-static int keypad_scan(u32 keymask[])
+static int keypad_scan(void)
 {
-	int i;
-	u32 cval, rval;
+	u32 col,cval,rval;
 
-	writel(readl(key_base+S3C_KEYIFCON) & ~(INT_F_EN|INT_R_EN), key_base+S3C_KEYIFCON);
+	DPRINTK("H3C %x H2C %x \n",readl(S5PC11X_GPH3CON),readl(S5PC11X_GPH2CON));
+	DPRINTK("keypad_scan() is called\n");
 
-	for (i = 0; i < KEYPAD_COLUMNS; i++) {
+	DPRINTK("row val = %x",readl(key_base + S3C_KEYIFROW));
 
-#if defined(CONFIG_ARCH_S5PV2XX)
-		cval = (0x1 << i) ^ KEYCOL_DMASK;
-#else
-		cval = ((0x1 << i) ^ KEYCOL_DMASK) << KEYPAD_COLUMNS;	/* use High-Z */
-#endif
-
-		writel(cval , key_base+S3C_KEYIFCOL);
+	for (col=0; col < KEYPAD_COLUMNS; col++) {
+		/* clear that column number and make that normal output */
+		cval = KEYCOL_DMASK & ~((1 << col) | (1 << col+ 8));
+		writel(cval, key_base+S3C_KEYIFCOL);
 
 		udelay(KEYPAD_DELAY);
-		rval = ~(readl(key_base+S3C_KEYIFROW)) & KEYROW_DMASK;
-		keymask[i] = rval;
+
+		rval = ~(readl(key_base+S3C_KEYIFROW)) & ((1<<KEYPAD_ROWS)-1) ;
+		keymask[col] = rval; 
 	}
 
 	writel(KEYIFCOL_CLEAR, key_base+S3C_KEYIFCOL);
-	writel(KEYIFSTSCLR_CLEAR, key_base+S3C_KEYIFSTSCLR);
 
 	return 0;
 }
 
 static void keypad_timer_handler(unsigned long data)
 {
-	u32 keymask[KEYPAD_COLUMNS];
 	u32 press_mask;
 	u32 release_mask;
-	u32 detect_press = 0;
-	int k, j;
-	int i;
+	u32 restart_timer = 0;
+	int i,col;
 	struct s3c_keypad *pdata = (struct s3c_keypad *)data;
 	struct input_dev *dev = pdata->dev;
 
-	keypad_scan(keymask);
+	keypad_scan();
 
-	for (k = 0, i = 0; k < KEYPAD_COLUMNS; k++) {
-		i = k*KEYPAD_ROWS;
-		if (keymask[k] != prevmask[k]) {
-			press_mask =
-				((keymask[k] ^ prevmask[k]) & keymask[k]);
-			release_mask =
-				((keymask[k] ^ prevmask[k]) & prevmask[k]);
-			for (j = 0 ; j < KEYPAD_ROWS ; j++) {
-				if (press_mask & 1) {
-					input_report_key(dev, pdata->keycodes[i+j], 1);
-					DPRINTK("key pressed: c=%d,r=%d,index=%d,keycode=%d\n",
-						i, j, i+j, pdata->keycodes[i+j]);
-				}
-				press_mask >>= 1;
+	for (col=0; col < KEYPAD_COLUMNS; col++) {
+		press_mask = ((keymask[col] ^ prevmask[col]) & keymask[col]); 
+		release_mask = ((keymask[col] ^ prevmask[col]) & prevmask[col]); 
+		i = col * KEYPAD_ROWS;
 
-				if (release_mask & 1) {
-					input_report_key(dev, pdata->keycodes[i+j], 0);
-					DPRINTK("key released: c=%d,r=%d,index=%d,keycode=%d\n",
-						i, j, i+j, pdata->keycodes[i+j]);
-					}
-				release_mask >>= 1;
-				}
+		while (press_mask) {
+			if (press_mask & 1) {
+				input_report_key(dev,pdata->keycodes[i],1);
+				DPRINTK("\nkey Pressed  : key %d map %d\n",i, pdata->keycodes[i]);
 			}
-		prevmask[k] = keymask[k];
-		detect_press |= keymask[k];
+			press_mask >>= 1;
+			i++;
 		}
 
-	if (detect_press) {
-		mod_timer(&keypad_timer, jiffies + HZ/10);
+		i = col * KEYPAD_ROWS;
+
+		while (release_mask) {
+			if (release_mask & 1) {
+				input_report_key(dev,pdata->keycodes[i],0);
+				DPRINTK("\nkey Released : %d  map %d\n",i,pdata->keycodes[i]);
+			}
+			release_mask >>= 1;
+			i++;
+		}
+		prevmask[col] = keymask[col];
+
+		restart_timer |= keymask[col];
+	}
+
+	if (restart_timer) {
+		mod_timer(&keypad_timer,jiffies + HZ/10);
 	} else {
 		writel(KEYIFCON_INIT, key_base+S3C_KEYIFCON);
 		is_timer_on = FALSE;
@@ -141,11 +139,10 @@ static irqreturn_t s3c_keypad_isr(int irq, void *dev_id)
 		mod_timer(&keypad_timer, keypad_timer.expires);
 	}
 	/*Clear the keypad interrupt status*/
-
 	writel(KEYIFSTSCLR_CLEAR, key_base+S3C_KEYIFSTSCLR);
+
 	return IRQ_HANDLED;
 }
-
 
 
 static int __init s3c_keypad_probe(struct platform_device *pdev)
@@ -212,7 +209,8 @@ static int __init s3c_keypad_probe(struct platform_device *pdev)
 
 	/* create and register the input driver */
 	set_bit(EV_KEY, input_dev->evbit);
-	set_bit(EV_REP, input_dev->evbit);
+	/* Commenting the generation of repeat events */
+	//set_bit(EV_REP, input_dev->evbit);
 	s3c_keypad->nr_rows = KEYPAD_ROWS;
 	s3c_keypad->no_cols = KEYPAD_COLUMNS;
 	s3c_keypad->total_keys = MAX_KEYPAD_NR;
@@ -246,7 +244,7 @@ static int __init s3c_keypad_probe(struct platform_device *pdev)
 		ret = -ENOENT;
 		goto err_irq;
 	}
-	ret = request_irq(keypad_irq->start, s3c_keypad_isr, IRQF_SHARED,
+	ret = request_irq(keypad_irq->start, s3c_keypad_isr, IRQF_SAMPLE_RANDOM,
 		DEVICE_NAME, (void *) pdev);
 	if (ret) {
 		printk(KERN_ERR"request_irq failed (IRQ_KEYPAD) !!!\n");
@@ -317,12 +315,18 @@ static int s3c_keypad_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
-static unsigned int keyifcon, keyiffc;
+
+static unsigned int keyiffc;
 
 static int s3c_keypad_suspend(struct platform_device *dev, pm_message_t state)
 {
-	keyifcon = readl(key_base+S3C_KEYIFCON);
 	keyiffc = readl(key_base+S3C_KEYIFFC);
+
+	/* Clear the keypad interrupt status */
+	writel(KEYIFSTSCLR_CLEAR, key_base+S3C_KEYIFSTSCLR);
+
+	del_timer(&keypad_timer);
+	is_timer_on = FALSE;
 
 	disable_irq(IRQ_KEYPAD);
 
@@ -333,10 +337,26 @@ static int s3c_keypad_suspend(struct platform_device *dev, pm_message_t state)
 
 static int s3c_keypad_resume(struct platform_device *dev)
 {
+#ifdef CONFIG_ANDROID
+	struct s3c_keypad *s3c_keypad = (struct s3c_keypad *) platform_get_drvdata(dev);
+	struct input_dev *idev = s3c_keypad->dev;
+#endif
+
 	clk_enable(keypad_clock);
 
-	writel(keyifcon, key_base+S3C_KEYIFCON);
+	writel(KEYIFCON_INIT, key_base+S3C_KEYIFCON);
 	writel(keyiffc, key_base+S3C_KEYIFFC);
+	writel(KEYIFCOL_CLEAR, key_base+S3C_KEYIFCOL);
+
+#ifdef CONFIG_ANDROID
+#define KEYCODE_UNKNOWN 10
+	input_report_key(idev, KEYCODE_UNKNOWN, 1);
+	udelay(5);
+	input_report_key(idev, KEYCODE_UNKNOWN, 0);
+#endif
+
+	/* Clear the keypad interrupt status */
+	writel(KEYIFSTSCLR_CLEAR, key_base+S3C_KEYIFSTSCLR);
 
 	enable_irq(IRQ_KEYPAD);
 

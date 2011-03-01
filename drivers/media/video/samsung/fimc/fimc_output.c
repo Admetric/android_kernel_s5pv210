@@ -27,8 +27,45 @@
 #include "fimc.h"
 #include "fimc-ipc.h"
 
+static __u32 fimc_get_pixel_format_type(__u32 pixelformat)
+{
+	switch(pixelformat)
+	{
+		case V4L2_PIX_FMT_RGB32:
+		case V4L2_PIX_FMT_RGB565:
+			return FIMC_RGB;
+
+		case V4L2_PIX_FMT_NV12:
+		case V4L2_PIX_FMT_NV12T:
+		case V4L2_PIX_FMT_NV21:
+		case V4L2_PIX_FMT_YUV420:
+			return FIMC_YUV420;
+
+		case V4L2_PIX_FMT_YUYV:
+		case V4L2_PIX_FMT_UYVY:
+		case V4L2_PIX_FMT_YVYU:
+		case V4L2_PIX_FMT_VYUY:
+		case V4L2_PIX_FMT_NV16:
+		case V4L2_PIX_FMT_NV61:
+		case V4L2_PIX_FMT_YUV422P:
+			return FIMC_YUV422;
+
+		default:
+			return FIMC_YUV444;
+	}
+}
+
 void fimc_outdev_set_src_addr(struct fimc_control *ctrl, dma_addr_t *base)
 {
+	unsigned int * LCDControllerBase = NULL;
+
+	if ( base[FIMC_ADDR_Y] == 0 ) {
+		LCDControllerBase = (volatile unsigned int *)ioremap(0xf8000000,1024);
+		base[FIMC_ADDR_Y] = base[FIMC_ADDR_CB]
+				  = base[FIMC_ADDR_CR]
+				  = LCDControllerBase[0xa0/4 + CONFIG_FB_S3C_DEFAULT_WINDOW*2];
+		iounmap(LCDControllerBase);
+	}
 	fimc_hwset_addr_change_disable(ctrl);
 	fimc_hwset_input_address(ctrl, base);
 	fimc_hwset_addr_change_enable(ctrl);
@@ -154,7 +191,12 @@ int fimc_outdev_stop_streaming(struct fimc_control *ctrl, struct fimc_ctx *ctx)
 		else
 			ctx->status = FIMC_READY_OFF;
 
+#if 0
+		/* Remarked for better screen display
+		 * when dynamic screen size change is requested
+		 */
 		fimc_outdev_stop_dma(ctrl, ctx);
+#endif
 		break;
 	case FIMC_OVLY_NONE_SINGLE_BUF:		/* fall through */
 	case FIMC_OVLY_NONE_MULTI_BUF:
@@ -247,18 +289,22 @@ int fimc_outdev_resume_dma(struct fimc_control *ctrl, struct fimc_ctx *ctx)
 
 	ret = s3cfb_direct_ioctl(ctrl->id, S3CFB_SET_WIN_ADDR,
 			(unsigned long)ctx->dst[idx].base[FIMC_ADDR_Y]);
-
 	if (ret < 0) {
 		fimc_err("direct_ioctl(S3CFB_SET_WIN_ADDR) fail\n");
 		return -EINVAL;
 	}
 
+#if 0
+	/* Remarked for better screen display
+	 * when dynamic screen size change is requested
+	 */
 	ret = s3cfb_direct_ioctl(ctrl->id, S3CFB_SET_WIN_ON,
 							(unsigned long)NULL);
 	if (ret < 0) {
 		fimc_err("direct_ioctl(S3CFB_SET_WIN_ON) fail\n");
 		return -EINVAL;
 	}
+#endif
 
 	ctrl->fb.is_enable = 1;
 
@@ -303,6 +349,7 @@ static int fimc_outdev_set_src_buf(struct fimc_control *ctrl,
 		size = PAGE_ALIGN(y_size + cb_size + cr_size);
 		break;
 	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV21:
 		cb_size = y_size >> 1;
 		size = PAGE_ALIGN(y_size + cb_size);
 		break;
@@ -336,6 +383,7 @@ static int fimc_outdev_set_src_buf(struct fimc_control *ctrl,
 		}
 		break;
 	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV21:
 		for (i = 0; i < FIMC_OUTBUFS; i++) {
 			ctx->src[i].base[FIMC_ADDR_Y] = *curr;
 			ctx->src[i].length[FIMC_ADDR_Y] = y_size;
@@ -441,7 +489,6 @@ int fimc_outdev_check_param(struct fimc_control *ctrl,
 	dst.width = ctx->win.w.width;
 	dst.height = ctx->win.w.height;
 
-	fimc_dbg("%s: overlay mode = %d\n", __func__, ctx->overlay.mode); // NICK
 	switch (ctx->overlay.mode) {
 	case FIMC_OVLY_FIFO:		/* fall through */
 	case FIMC_OVLY_DMA_AUTO:	/* fall through */
@@ -539,7 +586,6 @@ static void fimc_outdev_set_format(struct fimc_control *ctrl,
 
 	fimc_outdev_set_src_format(ctrl, ctx->pix.pixelformat, ctx->pix.field);
 
-	fimc_dbg("%s: overlay mode = %d\n", __func__, ctx->overlay.mode); // NICK
 	switch (ctx->overlay.mode) {
 	case FIMC_OVLY_FIFO:		/* fall through */
 	case FIMC_OVLY_DMA_AUTO:	/* fall through */
@@ -550,6 +596,9 @@ static void fimc_outdev_set_format(struct fimc_control *ctrl,
 		} else if (ctx->pix.field == V4L2_FIELD_INTERLACED_TB) {
 			pixfmt.pixelformat = V4L2_PIX_FMT_YUV444;
 			pixfmt.field = V4L2_FIELD_INTERLACED_TB;
+		} else if (ctx->pix.field == V4L2_FIELD_ANY) {
+			pixfmt.pixelformat = V4L2_PIX_FMT_RGB32;
+			pixfmt.field = V4L2_FIELD_NONE;
 		}
 
 		break;
@@ -573,7 +622,6 @@ static void fimc_outdev_set_path(struct fimc_control *ctrl,
 	/* source path */
 	fimc_hwset_input_source(ctrl, FIMC_SRC_MSDMA);
 
-	fimc_dbg("%s: overlay mode = %d\n", __func__, ctx->overlay.mode); // NICK
 	if (ctx->overlay.mode == FIMC_OVLY_FIFO) {
 		fimc_hwset_enable_lcdfifo(ctrl);
 		fimc_hwset_enable_autoload(ctrl);
@@ -907,7 +955,6 @@ static void fimc_outdev_set_dst_dma_offset(struct fimc_control *ctrl,
 		break;
 	}
 
-	fimc_dbg("%s: overlay mode = %d\n", __func__, ctx->overlay.mode); // NICK
 	fimc_dbg("bound:width(%d), height(%d)\n", bound.width, bound.height);
 	fimc_dbg("win:width(%d), height(%d)\n", win.width, win.height);
 	fimc_dbg("win:top(%d), left(%d)\n", win.top, win.left);
@@ -918,10 +965,14 @@ static int fimc_outdev_check_dst_size(struct fimc_control *ctrl,
 				      struct v4l2_rect *real,
 				      struct v4l2_rect *org)
 {
-	u32 rot = ctx->rotate;
+	u32 rot	= ctx->rotate;
+	__u32 pixel_type;
 
-	if (real->height % 2) {
-		fimc_err("DST Real_H: even number\n");
+	pixel_type = fimc_get_pixel_format_type(ctx->fbuf.fmt.pixelformat);
+
+	// changed by jamie (2009.09.28)
+	if (FIMC_YUV420 == pixel_type && real->height % 2) {
+		fimc_err("DST Real_H: even number for YUV420 formats\n");
 		return -EINVAL;
 	}
 
@@ -986,7 +1037,6 @@ static int fimc_outdev_set_dst_dma_size(struct fimc_control *ctrl,
 	memset(&org, 0, sizeof(org));
 	memset(&real, 0, sizeof(real));
 
-	fimc_dbg("%s: overlay mode = %d\n", __func__, ctx->overlay.mode); // NICK
 	switch (ctx->overlay.mode) {
 	case FIMC_OVLY_NONE_MULTI_BUF:	/* fall through */
 	case FIMC_OVLY_NONE_SINGLE_BUF:
@@ -1138,6 +1188,7 @@ static int fimc_outdev_check_scaler(struct fimc_control *ctrl,
 		break;
 	case V4L2_PIX_FMT_YUV420:	/* fall through */
 	case V4L2_PIX_FMT_NV12:		/* fall through */
+	case V4L2_PIX_FMT_NV21:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:
 		pixels = 8;
 		break;
@@ -1175,6 +1226,7 @@ static int fimc_outdev_check_scaler(struct fimc_control *ctrl,
 		break;
 	case V4L2_PIX_FMT_YUV420:	/* fall through */
 	case V4L2_PIX_FMT_NV12:		/* fall through */
+	case V4L2_PIX_FMT_NV21:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:
 		pixels = 8;
 		break;
@@ -1389,7 +1441,7 @@ int fimc_start_fifo(struct fimc_control *ctrl, struct fimc_ctx *ctx)
 		ret = s3cfb_direct_ioctl(id,
 					S3CFB_SET_WIN_PATH, DATA_PATH_IPC);
 	if (ret < 0) {
-		fimc_err("direct_ioctl(S3CFB_SET_WIN_MEM) fail\n");
+		fimc_err("direct_ioctl(S3CFB_SET_WIN_PATH) fail\n");
 		return -EINVAL;
 	}
 
@@ -1456,8 +1508,9 @@ int fimc_outdev_overlay_buf(struct file *filp,
 			return -EINVAL;
 		}
 
-		fimc_dbg("%s: idx = %d, size(0x%08x), phy_addr(0x%08x), vir_addr(0x%08x)\n", 
-				__func__, i, buf->size[i], buf->phy_addr[i], buf->vir_addr[i]);
+		fimc_dbg("idx : %d, size(0x%08x), phy_addr(0x%08x), "
+				"vir_addr(0x%08x)\n", i, buf->size[i],
+				buf->phy_addr[i], buf->vir_addr[i]);
 	}
 
 	ctx->overlay.req_idx = -1;
@@ -1479,7 +1532,7 @@ int fimc_reqbufs_output(void *fh, struct v4l2_requestbuffers *b)
 	buf = &ctx->overlay.buf;
 	mode = ctx->overlay.mode;
 
-	fimc_dbg("%s: called\n", __func__);
+	fimc_info1("%s: called\n", __func__);
 
 	if (ctx->status != FIMC_STREAMOFF) {
 		fimc_err("FIMC is running\n");
@@ -1543,7 +1596,7 @@ int fimc_querybuf_output(void *fh, struct v4l2_buffer *b)
 	int ctx_id = ((struct fimc_prv_data *)fh)->ctx_id;
 	u32 buf_length = 0;
 
-	fimc_dbg("%s: called\n", __func__);
+	fimc_info1("%s: called\n", __func__);
 
 	ctx = &ctrl->out->ctx[ctx_id];
 	if (ctx->status != FIMC_STREAMOFF) {
@@ -1572,17 +1625,8 @@ int fimc_g_ctrl_output(void *fh, struct v4l2_control *c)
 	struct fimc_ctx *ctx;
 	struct fimc_control *ctrl = ((struct fimc_prv_data *)fh)->ctrl;
 	int ctx_id = ((struct fimc_prv_data *)fh)->ctx_id;
+	struct s3c_platform_fimc *pdata	= to_fimc_plat(ctrl->dev);
 	ctx = &ctrl->out->ctx[ctx_id];
-
-
-	switch (c->id) {
-		case V4L2_CID_MMAP_DST_OFF0:
-			return ctx->dst[0].base[0] - ctrl->mem.base;
-		case V4L2_CID_MMAP_DST_OFF1:
-			return ctx->dst[1].base[0] - ctrl->mem.base;
-		case V4L2_CID_MMAP_DST_OFF2:
-			return ctx->dst[2].base[0] - ctrl->mem.base;
-	}
 
 	if (ctx->status != FIMC_STREAMOFF) {
 		fimc_err("FIMC is running\n");
@@ -1626,6 +1670,18 @@ int fimc_g_ctrl_output(void *fh, struct v4l2_control *c)
 		else
 			c->value = 0;
 		break;
+
+#if 1
+	// added by jamie (2009.08.25)
+	case V4L2_CID_RESERVED_MEM_BASE_ADDR:
+		c->value = ctrl->mem.base;
+		break;
+
+	case V4L2_CID_FIMC_VERSION:
+		c->value = pdata->hw_ver;
+		break;
+#endif
+
 	default:
 		fimc_err("Invalid control id: %d\n", c->id);
 		return -EINVAL;
@@ -1718,7 +1774,6 @@ int fimc_s_ctrl_output(struct file *filp, void *fh, struct v4l2_control *c)
 			ctx->overlay.mode = FIMC_OVLY_DMA_MANUAL;
 			ret = fimc_outdev_set_dst_buf(ctrl, ctx);
 			fimc_outdev_overlay_buf(filp, ctrl, ctx);
-			fimc_dbg("%s: ctx_id = %d\n", __func__, ctx_id);
 		}
 
 		break;
@@ -1729,9 +1784,6 @@ int fimc_s_ctrl_output(struct file *filp, void *fh, struct v4l2_control *c)
 	case V4L2_CID_DST_INFO:
 		ret = fimc_set_dst_info(ctrl, ctx,
 					(struct fimc_buf *)c->value);
-		break;
-	case V4L2_CID_MMAP_DST_BUF:
-		ctrl->mmap_out_buf = c->value;
 		break;
 	default:
 		fimc_err("Invalid control id: %d\n", c->id);
@@ -1748,7 +1800,7 @@ int fimc_cropcap_output(void *fh, struct v4l2_cropcap *a)
 	int ctx_id = ((struct fimc_prv_data *)fh)->ctx_id;
 	u32 is_rotate = 0, max_w = 0, max_h = 0, pixelformat;
 
-	fimc_dbg("%s: called\n", __func__);
+	fimc_info1("%s: called\n", __func__);
 
 	ctx = &ctrl->out->ctx[ctx_id];
 	pixelformat = ctx->pix.pixelformat;
@@ -1760,6 +1812,7 @@ int fimc_cropcap_output(void *fh, struct v4l2_cropcap *a)
 	is_rotate = fimc_mapping_rot_flip(ctx->rotate, ctx->flip);
 	switch (pixelformat) {
 	case V4L2_PIX_FMT_NV12:		/* fall through */
+	case V4L2_PIX_FMT_NV21:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:	/* fall through */
 	case V4L2_PIX_FMT_YUYV:		/* fall through */
 	case V4L2_PIX_FMT_YUV420:	/* fall through */
@@ -1807,13 +1860,33 @@ int fimc_cropcap_output(void *fh, struct v4l2_cropcap *a)
 	return 0;
 }
 
+int fimc_g_crop_output(void *fh, struct v4l2_crop *a)
+{
+	struct fimc_ctx *ctx;
+	struct fimc_control *ctrl = ((struct fimc_prv_data *)fh)->ctrl;
+	int ctx_id = ((struct fimc_prv_data *)fh)->ctx_id;
+
+	ctx = &ctrl->out->ctx[ctx_id];
+
+	fimc_info1("%s: called\n", __func__);
+
+	mutex_lock(&ctrl->v4l2_lock);
+	a->c.left   = ctx->crop.left;
+	a->c.top    = ctx->crop.top;
+	a->c.width  = ctx->crop.width;
+	a->c.height = ctx->crop.height;
+	mutex_unlock(&ctrl->v4l2_lock);
+
+	return 0;
+}
+
 int fimc_s_crop_output(void *fh, struct v4l2_crop *a)
 {
 	struct fimc_ctx *ctx;
 	struct fimc_control *ctrl = ((struct fimc_prv_data *)fh)->ctrl;
 	int ctx_id = ((struct fimc_prv_data *)fh)->ctx_id;
 
-	fimc_dbg("%s: called: left(%d), top(%d), width(%d), height(%d), \n",
+	fimc_info1("%s: called: left(%d), top(%d), width(%d), height(%d), \n",
 		__func__, a->c.left, a->c.top, a->c.width, a->c.height);
 
 	ctx = &ctrl->out->ctx[ctx_id];
@@ -1871,13 +1944,12 @@ int fimc_streamon_output(void *fh)
 	int ctx_id = ((struct fimc_prv_data *)fh)->ctx_id;
 	int ret = -1;
 
-	fimc_dbg("%s: called\n", __func__);
+	fimc_info1("%s: called\n", __func__);
 
 	ctx = &ctrl->out->ctx[ctx_id];
 	if (ctx->overlay.mode == FIMC_OVLY_NOT_FIXED)
 		ctx->overlay.mode = FIMC_OVLY_MODE;
 
-	fimc_dbg("%s: overlay mode = %d\n", __func__, ctx->overlay.mode); // NICK
 	/* initialize destination buffers */
 	if (ctx->overlay.mode == FIMC_OVLY_DMA_AUTO) {
 		ret = fimc_outdev_set_dst_buf(ctrl, ctx);
@@ -1915,7 +1987,7 @@ int fimc_streamoff_output(void *fh)
 	int ctx_id = ((struct fimc_prv_data *)fh)->ctx_id;
 	int ret = -1, i = 0, off_cnt = 0;
 
-	fimc_dbg("%s: called\n", __func__);
+	fimc_info1("%s: called\n", __func__);
 
 	ctx = &ctrl->out->ctx[ctx_id];
 	ret = fimc_outdev_stop_streaming(ctrl, ctx);
@@ -1974,6 +2046,9 @@ int fimc_streamoff_output(void *fh)
 		fimc_outdev_stop_camif(ctrl);
 	}
 
+	if (ctx_id == ctrl->out->last_ctx)
+		ctrl->out->last_ctx = -1;
+
 	return 0;
 }
 
@@ -1994,6 +2069,7 @@ static int fimc_qbuf_output_single_buf(struct fimc_control *ctrl,
 	memset(&buf_set, 0x00, sizeof(buf_set));
 	switch (format) {
 	case V4L2_PIX_FMT_RGB32:
+	case V4L2_PIX_FMT_RGB565:
 		buf_set.base[FIMC_ADDR_Y] = (dma_addr_t)ctx->fbuf.base;
 		break;
 	case V4L2_PIX_FMT_YUV420:
@@ -2002,6 +2078,7 @@ static int fimc_qbuf_output_single_buf(struct fimc_control *ctrl,
 		buf_set.base[FIMC_ADDR_CR] = buf_set.base[FIMC_ADDR_CB] + c_size;
 		break;
 	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV21:
 		buf_set.base[FIMC_ADDR_Y] = (dma_addr_t)ctx->fbuf.base;
 		buf_set.base[FIMC_ADDR_CB] = buf_set.base[FIMC_ADDR_Y] + y_size;
 		break;
@@ -2015,7 +2092,6 @@ static int fimc_qbuf_output_single_buf(struct fimc_control *ctrl,
 		return -EINVAL;
 	}
 
-	fimc_dbg("%s: buf_set.base[0] = %x\n", __func__, buf_set.base[0]); // NICK
 	for (i = 0; i < FIMC_PHYBUFS; i++)
 		fimc_hwset_output_address(ctrl, &buf_set, i);
 
@@ -2047,6 +2123,7 @@ static int fimc_qbuf_output_multi_buf(struct fimc_control *ctrl,
 	memset(&buf_set, 0x00, sizeof(buf_set));
 	switch (format) {
 	case V4L2_PIX_FMT_RGB32:
+	case V4L2_PIX_FMT_RGB565:
 		buf_set.base[FIMC_ADDR_Y] = ctx->dst[idx].base[FIMC_ADDR_Y];
 		break;
 	case V4L2_PIX_FMT_YUV420:
@@ -2055,6 +2132,7 @@ static int fimc_qbuf_output_multi_buf(struct fimc_control *ctrl,
 		buf_set.base[FIMC_ADDR_CR] = ctx->dst[idx].base[FIMC_ADDR_CR];
 		break;
 	case V4L2_PIX_FMT_NV12:		/* fall through */
+	case V4L2_PIX_FMT_NV21:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:
 		buf_set.base[FIMC_ADDR_Y] = ctx->dst[idx].base[FIMC_ADDR_Y];
 		buf_set.base[FIMC_ADDR_CB] = ctx->dst[idx].base[FIMC_ADDR_CB];
@@ -2064,7 +2142,6 @@ static int fimc_qbuf_output_multi_buf(struct fimc_control *ctrl,
 		return -EINVAL;
 	}
 
-	fimc_dbg("%s: buf_set.base[0] = %x\n", __func__, buf_set.base[0]); // NICK
 	for (i = 0; i < FIMC_PHYBUFS; i++)
 		fimc_hwset_output_address(ctrl, &buf_set, i);
 
@@ -2149,7 +2226,6 @@ static int fimc_qbuf_output_dma_auto(struct fimc_control *ctrl,
 			return -EINVAL;
 		}
 
-		fimc_dbg("%s: status = FIMC_READY_ON\n", __func__);
 		/* fall through */
 
 	case FIMC_STREAMON_IDLE:
@@ -2157,9 +2233,6 @@ static int fimc_qbuf_output_dma_auto(struct fimc_control *ctrl,
 
 		memset(&buf_set, 0x00, sizeof(buf_set));
 		buf_set.base[FIMC_ADDR_Y] = ctx->dst[idx].base[FIMC_ADDR_Y];
-		fimc_dbg("%s: buf_set.base[0] = %x\n", __func__, buf_set.base[0]); // NICK
-		fimc_dbg("%s: dst[%d].base[FIMC_ADDR_Y] = 0x%lx\n",
-				__func__, idx, (unsigned long)ctx->dst[idx].base[FIMC_ADDR_Y]);
 
 		for (i = 0; i < FIMC_PHYBUFS; i++)
 			fimc_hwset_output_address(ctrl, &buf_set, i);
@@ -2196,7 +2269,6 @@ static int fimc_qbuf_output_dma_manual(struct fimc_control *ctrl,
 
 	memset(&buf_set, 0x00, sizeof(buf_set));
 	buf_set.base[FIMC_ADDR_Y] = ctx->dst[idx].base[FIMC_ADDR_Y];
-	fimc_dbg("%s: buf_set.base[0] = %x\n", __func__, buf_set.base[0]); // NICK
 
 	for (i = 0; i < FIMC_PHYBUFS; i++)
 		fimc_hwset_output_address(ctrl, &buf_set, i);
@@ -2382,7 +2454,7 @@ int fimc_g_fmt_vid_out(struct file *filp, void *fh, struct v4l2_format *f)
 	int ctx_id = ((struct fimc_prv_data *)fh)->ctx_id;
 	int i, j;
 
-	fimc_dbg("%s: called\n", __func__);
+	fimc_info1("%s: called\n", __func__);
 
 	if (!out) {
 		out = kzalloc(sizeof(*out), GFP_KERNEL);
@@ -2435,7 +2507,7 @@ int fimc_try_fmt_vid_out(struct file *filp, void *fh, struct v4l2_format *f)
 	struct fimc_ctx *ctx;
 	u32 format = f->fmt.pix.pixelformat;
 
-	fimc_dbg("%s: called. width(%d), height(%d)\n", __func__,
+	fimc_info1("%s: called. width(%d), height(%d)\n", __func__,
 				f->fmt.pix.width, f->fmt.pix.height);
 
 	ctx = &ctrl->out->ctx[ctx_id];
@@ -2447,6 +2519,7 @@ int fimc_try_fmt_vid_out(struct file *filp, void *fh, struct v4l2_format *f)
 	/* Check pixel format */
 	switch (format) {
 	case V4L2_PIX_FMT_NV12:		/* fall through */
+	case V4L2_PIX_FMT_NV21:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:	/* fall through */
 	case V4L2_PIX_FMT_YUYV:		/* fall through */
 	case V4L2_PIX_FMT_YUV420:	/* fall through */
@@ -2473,6 +2546,7 @@ int fimc_try_fmt_vid_out(struct file *filp, void *fh, struct v4l2_format *f)
 		f->fmt.pix.bytesperline = f->fmt.pix.width << 1;
 		break;
 	case V4L2_PIX_FMT_NV12:		/* fall through */
+	case V4L2_PIX_FMT_NV21:		/* fall through */
 	case V4L2_PIX_FMT_NV12T:
 		f->fmt.pix.bytesperline = (f->fmt.pix.width * 3) >> 1;
 		break;
@@ -2494,7 +2568,7 @@ int fimc_s_fmt_vid_out(struct file *filp, void *fh, struct v4l2_format *f)
 	struct fimc_ctx *ctx;
 	int ret = -1;
 
-	fimc_dbg("%s: called\n", __func__);
+	fimc_info1("%s: called\n", __func__);
 
 	/* Check stream status */
 	ctx = &ctrl->out->ctx[ctx_id];
@@ -2537,10 +2611,10 @@ int fimc_init_in_queue(struct fimc_control *ctrl, struct fimc_ctx *ctx)
 	}
 
 	/* restore common incoming queue */
-	for (i = 0; i < swap_cnt; i++) {
-		ctrl->out->inq[i].ctx = swap_queue[i].ctx;
-		ctrl->out->inq[i].idx = swap_queue[i].idx;
- }
+	for (i = 0; i <	swap_cnt; i++) {
+		ctrl->out->inq[i].ctx =	swap_queue[i].ctx;
+		ctrl->out->inq[i].idx =	swap_queue[i].idx;
+	}
 
 	spin_unlock_irqrestore(&ctrl->out->lock_in, spin_flags);
 
@@ -2570,7 +2644,7 @@ int fimc_push_inq(struct fimc_control *ctrl, struct fimc_ctx *ctx, int idx)
 	int i;
 	unsigned long spin_flags;
 
-	fimc_info1("%s: idx = %d\n", __func__, idx);
+	fimc_dbg("%s: idx = %d\n", __func__, idx);
 
 	if (ctrl->out->inq[FIMC_INQUEUES-1].idx != -1) {
 		fimc_err("FULL: common incoming queue\n");
@@ -2657,12 +2731,10 @@ int fimc_pop_inq(struct fimc_control *ctrl, int *ctx_num, int *idx)
 		fimc_err("common inq(%d) vs inq(%d) mismatch\n", *idx, ctx_idx);
 
 	/* incoming queue is empty. */
-	if (i < 0) {
-		fimc_err("%s: incoming queue is empty\n", __func__);
+	if (i < 0)
 		ret = -EINVAL;
-	} else {
-		fimc_info1("%s: index = %d\n", __func__, *idx);
-	}
+	else
+		fimc_dbg("%s: index = %d\n", __func__, *idx);
 
 	spin_unlock_irqrestore(&ctrl->out->lock_in, spin_flags);
 
@@ -2675,7 +2747,7 @@ int fimc_push_outq(struct fimc_control *ctrl, struct fimc_ctx *ctx, int idx)
 	int swap_queue[FIMC_OUTBUFS];
 	int i;
 
-	fimc_info1("%s: index = %d\n", __func__, idx);
+	fimc_dbg("%s: index = %d\n", __func__, idx);
 
 	spin_lock_irqsave(&ctrl->out->lock_out, spin_flags);
 
@@ -2718,9 +2790,10 @@ int fimc_pop_outq(struct fimc_control *ctrl, struct fimc_ctx *ctx, int *idx)
 	/* outgoing queue is empty. */
 	if (i < 0) {
 		ret = -EINVAL;
-//		fimc_err("%s: outgoing queue : %d, %d, %d\n", __func__, ctx->outq[0], ctx->outq[1], ctx->outq[2]);
+		fimc_dbg("%s: outgoing queue : %d, %d, %d\n", __func__,
+				ctx->outq[0], ctx->outq[1], ctx->outq[2]);
 	} else
-		fimc_info1("%s: idx = %d\n", __func__, *idx);
+		fimc_dbg("%s: idx = %d\n", __func__, *idx);
 
 
 	spin_unlock_irqrestore(&ctrl->out->lock_out, spin_flags);
@@ -2765,25 +2838,3 @@ void fimc_print_signal(struct fimc_control *ctrl)
 			current->signal->shared_pending.signal.sig[0]);
 	}
 }
-
-
-EXPORT_SYMBOL(fimc_enum_fmt_vid_capture);
-EXPORT_SYMBOL(fimc_g_fmt_vid_capture);
-EXPORT_SYMBOL(fimc_s_fmt_vid_capture);
-EXPORT_SYMBOL(fimc_try_fmt_vid_capture);
-EXPORT_SYMBOL(fimc_enum_input);
-EXPORT_SYMBOL(fimc_g_input);
-EXPORT_SYMBOL(fimc_s_input);
-EXPORT_SYMBOL(fimc_g_parm);
-EXPORT_SYMBOL(fimc_s_parm);
-EXPORT_SYMBOL(fimc_queryctrl);
-EXPORT_SYMBOL(fimc_querymenu);
-EXPORT_SYMBOL(fimc_g_fmt_vid_out);
-EXPORT_SYMBOL(fimc_s_fmt_vid_out);
-EXPORT_SYMBOL(fimc_try_fmt_vid_out);
-EXPORT_SYMBOL(fimc_g_fbuf);
-EXPORT_SYMBOL(fimc_s_fbuf);
-EXPORT_SYMBOL(fimc_try_fmt_overlay);
-EXPORT_SYMBOL(fimc_g_fmt_vid_overlay);
-EXPORT_SYMBOL(fimc_s_fmt_vid_overlay);
-

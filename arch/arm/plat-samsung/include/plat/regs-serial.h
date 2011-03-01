@@ -257,7 +257,11 @@ struct s3c2410_uartcfg {
 	unsigned char	   hwport;	 /* hardware port number */
 	unsigned char	   unused;
 	unsigned short	   flags;
+#if !defined(CONFIG_CPU_S5PV210)
 	upf_t		   uart_flags;	 /* default uart flags */
+#else
+        unsigned long	   uart_flags;      /* default uart flags */
+#endif
 
 	unsigned long	   ucon;	 /* value of ucon for port */
 	unsigned long	   ulcon;	 /* value of ulcon for port */

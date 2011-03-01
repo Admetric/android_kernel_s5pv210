@@ -40,7 +40,20 @@ int keypad_keycode[] = {
 	KEY_LEFTSHIFT,	KEY_9,	KEY_8,	KEY_I,	KEY_K,	KEY_B,    	63,			KEY_COMMA,		106, 107, 108, 109, 110, 111,
 };
 #else
-int keypad_keycode[] =
+#ifdef CONFIG_ANDROID
+int keypad_keycode[] = {
+		1,2,3,4,5,6,7,8,
+		9,10,11,12,13,14,15,16,
+		17,18,19,20,21,22,23,24,
+		25,26,27,28,29,30,31,32,
+		33,34,35,36,37,38,39,40,
+		41,42,43,44,45,46,47,48,
+		49,50,51,52,53,54,55,56,
+		57,58,59,60,61,62,63,64
+
+};
+#else
+int keypad_keycode[] = {
 	1,				2,		KEY_1,	KEY_Q,	KEY_A,	6,			7,			KEY_LEFT,
 	9,				10,		KEY_2,	KEY_W,	KEY_S,	KEY_Z,		KEY_RIGHT,	16,
 	17,				18,		KEY_3,	KEY_E,	KEY_D,	KEY_X,		23,			KEY_UP,
@@ -50,6 +63,7 @@ int keypad_keycode[] =
 	KEY_M,			KEY_L,	KEY_7,	KEY_U,	KEY_J,	KEY_N,		55,			KEY_ENTER,
 	KEY_LEFTSHIFT,	KEY_9,	KEY_8,	KEY_I,	KEY_K,	KEY_B,		63,			KEY_COMMA,
 };
+#endif
 #endif
 
 #if defined(CONFIG_CPU_S3C6410)

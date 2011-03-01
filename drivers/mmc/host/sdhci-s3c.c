@@ -261,11 +261,45 @@ static int sdhci_s3c_get_ro(struct mmc_host *mmc)
 	return 0;
 }
 
+/*
+ * This function is to avoid abnormal command complete on issuing command.
+ * Sometimes abnormal command would be occurred because of H/W glitch.
+ */
+static void sdhci_s3c_init_issue_cmd(struct sdhci_host *host)
+{
+	struct sdhci_s3c *ourhost = to_s3c(host);
+	uint timeout;
+
+	/* Clear Error Interrupt Status Register before issuing cmd */
+	writew(readw(host->ioaddr + S3C_SDHCI_ERRINTSTS),
+		host->ioaddr + S3C_SDHCI_ERRINTSTS);
+
+	/* Clear Normal Interrupt Status Register before issuing cmd */
+	writew(readw(host->ioaddr + S3C_SDHCI_NORINTSTS),
+		host->ioaddr + S3C_SDHCI_NORINTSTS);
+
+	/* Wait max 10 ms */
+	timeout = 10;
+
+	/* Check the status busy bit until it is low*/
+	while ((readw(host->ioaddr + S3C_SDHCI_CONTROL4)
+		& SDHCI_S3C_CONTROL4_BUSY)) {
+		if(timeout == 0) {
+			printk(KERN_ERR "sdhci: Status busy bit is \
+				LOW for 10ms(warning)\n");
+			break;
+		}
+		timeout--;
+		mdelay(1);
+	}
+}
+
 static struct sdhci_ops sdhci_s3c_ops = {
 	.get_max_clock		= sdhci_s3c_get_max_clk,
 	.get_timeout_clock	= sdhci_s3c_get_timeout_clk,
 	.set_clock		= sdhci_s3c_set_clock,
 	.set_ios		= sdhci_s3c_set_ios,
+	.init_issue_cmd		= sdhci_s3c_init_issue_cmd,
 };
 
 irqreturn_t sdhci_irq_cd(int irq, void *dev_id)
@@ -405,6 +439,7 @@ static int __devinit sdhci_s3c_probe(struct platform_device *pdev)
 			 SDHCI_QUIRK_32BIT_DMA_SIZE);
 
 	host->quirks |= SDHCI_QUIRK_NO_HISPD_BIT;
+	host->quirks |= SDHCI_QUIRK_INIT_ISSUE_CMD;
 
 	if (pdata->host_caps)
 		host->mmc->caps = pdata->host_caps;

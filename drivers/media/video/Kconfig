@@ -342,12 +342,6 @@ config VIDEO_S5K3BA
 	---help---
 	  This driver supports s5k3ba SoC camera module
 
-config VIDEO_S5K4BA
-	tristate "S5K4BA supporting camera driver"
-	depends on I2C && VIDEO_V4L2
-	---help---
-	  This driver supports s5k4ba SoC camera module
-
 config VIDEO_S5K4EA
 	tristate "S5K4EA MIPI CSI-2 supporting camera driver"
 	depends on I2C && VIDEO_V4L2 && VIDEO_FIMC_MIPI
@@ -1073,6 +1067,12 @@ config USB_S2255
 	  This driver can be compiled as a module, called s2255drv.
 
 endif # V4L_USB_DRIVERS
+
+config VIDEO_S5K4BA
+	tristate "S5K4BA supporting camera driver"
+	depends on I2C && VIDEO_V4L2
+	---help---
+	  This driver supports s5k4ba SoC camera module
 
 source "drivers/media/video/samsung/Kconfig"
 

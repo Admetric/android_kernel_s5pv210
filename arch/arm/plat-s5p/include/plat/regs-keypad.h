@@ -28,7 +28,11 @@
 #if defined(CONFIG_KEYPAD_S3C_MSM)
 #define KEYROW_DMASK		(0x3fff) /*msm interface for s5pv210 */
 #else
+#if defined(CONFIG_ARCH_S5PV210)
+#define KEYROW_DMASK		(0x3fff)
+#else
 #define KEYROW_DMASK		(0xff)
+#endif
 #endif
 #define	INT_F_EN		(1<<0)	/*falling edge(key-pressed) interuppt enable*/
 #define	INT_R_EN		(1<<1)	/*rising edge(key-released) interuppt enable*/
@@ -36,7 +40,7 @@
 #define	FC_EN			(1<<3)	/*filter clock enable*/
 #define	KEYIFCON_INIT		(KEYIFCON_CLEAR | INT_F_EN|INT_R_EN|DF_EN|FC_EN)
 #if defined(CONFIG_ARCH_S5PV210)
-#define KEYIFSTSCLR_CLEAR	(0xffffffff)
+#define KEYIFSTSCLR_CLEAR	(0x3fffffff)
 #define KEYIFCOL_RESET	((0X0<<8) | (0X0<<9))
 #else
 #define KEYIFSTSCLR_CLEAR	(0xffff)

@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/errno.h>
 #include <linux/delay.h>
+#include <linux/clk.h>
 
 #include <asm/system.h>
 #include <asm/irq.h>
@@ -48,7 +49,13 @@
 #define pr_debug(fmt...)
 #endif
 
+/* #undef DMA_CLK_GATING */
+#define DMA_CLK_GATING
 #undef SECURE_M2M_DMA_MODE_SET
+
+static struct clk *mdma_clock, *pdma0_clock, *pdma1_clock;
+/* bitmap for dma controller in RUNNING state */
+static unsigned int dma_cntlrs_run[S3C_DMA_CONTROLLERS];
 
 /* io map for dma */
 static void __iomem 		*dma_base;
@@ -97,7 +104,7 @@ void s3c_dma_dump(int dcon_num, int channel)
 		dcon_num, channel, tmp);
 
 	tmp = dma_rdreg(dma_controller, S3C_DMAC_INTEN);
-	printk(KERN_INFO "%d dcon_num %d chnnel : INT enable %lx\n",
+	printk(KERN_INFO "%d dcon_num %d chnnel : INT nable %lx\n",
 		dcon_num, channel, tmp);
 
 	tmp = dma_rdreg(dma_controller, S3C_DMAC_ES);
@@ -181,9 +188,11 @@ void s3c_disable_dmac(unsigned int dcon_num)
 void s3c_clear_interrupts(int dcon_num, int channel)
 {
 	unsigned long tmp;
+
 	s3c_dma_controller_t *dma_controller = &s3c_dma_cntlrs[dcon_num];
 
-	tmp = dma_rdreg(dma_controller, S3C_DMAC_INTCLR);
+	tmp = dma_rdreg(dma_controller, S3C_DMAC_INTSTATUS);
+	pr_debug("%s: channel: %d, intclr: 0x%08x\n", __func__, channel, tmp);
 	tmp |= (1 << channel);
 	dma_wrreg(dma_controller, S3C_DMAC_INTCLR, tmp);
 }
@@ -385,6 +394,64 @@ static inline void s3c_dma_buffdone(struct s3c2410_dma_chan *chan,
 		(chan->callback_fn) (chan, buf->id, buf->size, result);
 }
 
+#ifdef DMA_CLK_GATING
+/*
+ *  Workaround for dma controller 2 clk issue.
+ *  dma con 2 works only when con1 (peri 0) clk is also enabled
+ */
+static unsigned char dma1_on = 0;
+
+static int s5p_dma_clk_enable(struct s3c2410_dma_chan *chan, unsigned int enable)
+{
+	unsigned char dmactrl = chan->dma_con->number;
+
+	if (enable == 1) {
+		if (dmactrl == 0) {
+			if (!dma_cntlrs_run[dmactrl])
+				clk_enable(mdma_clock);
+		} else if (dmactrl == 1) {
+			pr_debug("dma_con[%d] clk on\n", dma_cntlrs_run[dmactrl]);
+			if (!dma1_on) {
+				clk_enable(pdma0_clock);
+				dma1_on = 1;
+			}
+		} else {
+			pr_debug("dma_con[%d] clk on\n", dma_cntlrs_run[dmactrl]);
+			if (!dma1_on) {
+				clk_enable(pdma1_clock);
+				dma1_on = 1;
+			}
+			if (!dma_cntlrs_run[dmactrl])
+				clk_enable(pdma0_clock);
+		}
+	} else {
+		if (dmactrl == 0) {
+			if (!dma_cntlrs_run[dmactrl])
+				clk_disable(mdma_clock);
+
+		} else if (dmactrl == 1) {
+			pr_debug("dma_con[%d] clk off\n", dma_cntlrs_run[dmactrl]);
+			if(!dma_cntlrs_run[dmactrl] && !dma_cntlrs_run[dmactrl - 1]) {
+				clk_disable(pdma0_clock);
+				dma1_on = 0;
+			}
+
+		} else {
+			pr_debug("dma_con[%d] clk off\n", dma_cntlrs_run[dmactrl]);
+			if (!dma_cntlrs_run[dmactrl])
+				clk_disable(pdma1_clock);
+
+			if (!dma_cntlrs_run[dmactrl - 1]) {
+				clk_disable(pdma0_clock);
+				dma1_on = 0;
+			}
+		}
+	}
+
+	return 0;
+}
+#endif
+
 /* s3c_dma_start
  *
  * start a dma channel going
@@ -392,19 +459,30 @@ static inline void s3c_dma_buffdone(struct s3c2410_dma_chan *chan,
 static int s3c_dma_start(struct s3c2410_dma_chan *chan)
 {
 	unsigned long flags;
+	unsigned char dmactrl = chan->dma_con->number;
 
 	pr_debug("s3c_start_dma: channel number=%d, index=%d\n",
-		 chan->number, chan->index);
+		chan->number, chan->index);
 
 	local_irq_save(flags);
 
 	if (chan->state == S5P_DMA_RUNNING) {
-		pr_debug("s3c_start_dma: already running (%d)\n", chan->state);
+		pr_debug("%s: already running (%d)\n", __func__, chan->state);
 		local_irq_restore(flags);
 		return 0;
 	}
 
 	chan->state = S5P_DMA_RUNNING;
+
+#ifdef DMA_CLK_GATING
+	if (!dma_cntlrs_run[dmactrl]) {
+		pr_debug("clock enable to run dma_con[%d]\n", dma_cntlrs_run[dmactrl]);
+		s5p_dma_clk_enable(chan, 1);
+	}
+
+	pr_debug("clk_gate_ip0 = 0x%08x\n", __raw_readl(S5P_CLKGATE_IP0));
+	dma_cntlrs_run[dmactrl] |= (1 << chan->number);
+#endif
 
 	/* check wether there is anything to load, and if not, see
 	 * if we can find anything to load
@@ -867,6 +945,7 @@ int s3c2410_dma_free(unsigned int channel, struct s3c2410_dma_client *client)
 {
 	unsigned long flags;
 	struct s3c2410_dma_chan *chan = lookup_dma_channel(channel);
+	unsigned char dmactrl = chan->dma_con->number;
 
 	pr_debug("%s: DMA channel %d will be stopped\n",
 		__func__, chan->number);
@@ -899,6 +978,20 @@ int s3c2410_dma_free(unsigned int channel, struct s3c2410_dma_client *client)
 		free_irq(chan->irq, (void *)chan->dma_con);
 
 	chan->irq_claimed = 0;
+
+
+#ifdef DMA_CLK_GATING
+	/* stop the clock if not already stopped */
+	if (dma_cntlrs_run[dmactrl]) {
+		dma_cntlrs_run[dmactrl] &= ~(1 << chan->number);
+		if (!(dma_cntlrs_run[dmactrl])) {
+			s5p_dma_clk_enable(chan, 0);
+			pr_debug("clock disable to stop dma_con[%d]\n",
+					dma_cntlrs_run[dmactrl]);
+		}
+		pr_debug("clk_gate_ip0 = 0x%08x \n", __raw_readl(S5P_CLKGATE_IP0));
+	}
+#endif
 
 	if (!(channel & DMACH_LOW_LEVEL))
 		dma_chan_map[channel] = NULL;
@@ -1113,7 +1206,9 @@ int s3c2410_dma_config(unsigned int channel, int xferunit)
 	pr_debug("%s: dcon now %08x\n", __func__, dcon);
 
 	/* For DMCCxControl 0 */
-	chan->dcon = dcon;
+	dcon &= 0x0fffffff;
+	chan->dcon &= 0xf0000000;
+	chan->dcon |= dcon; /* Save the swap setup */
 
 	/* For DMACCxControl 1 : xferunit means transfer width.*/
 	chan->xfer_unit = xferunit;
@@ -1121,6 +1216,38 @@ int s3c2410_dma_config(unsigned int channel, int xferunit)
 	return 0;
 }
 EXPORT_SYMBOL(s3c2410_dma_config);
+
+int s3c2410_dma_setswap(unsigned int channel, unsigned int bytes_swap)
+{
+	struct s3c2410_dma_chan *chan = lookup_dma_channel(channel);
+
+	switch (bytes_swap) {
+	case 0: 	/*  No Swap */
+		bytes_swap = S3C_DMACONTROL_ES_SIZE_NO;
+		break;
+	case 2:		/*  Swap within sets of 16 bits */
+		bytes_swap = S3C_DMACONTROL_ES_SIZE_16;
+		break;
+	case 4:		/*  Swap within sets of 32 bits */
+		bytes_swap = S3C_DMACONTROL_ES_SIZE_32;
+		break;
+	case 8:		/*  Swap within sets of 64 bits */
+		bytes_swap = S3C_DMACONTROL_ES_SIZE_64;
+		break;
+	case 16:	/*  Swap within sets of 128 bits */
+		bytes_swap = S3C_DMACONTROL_ES_SIZE_128;
+		break;
+	default:
+		pr_debug("%s:%d Invalid swap request %d\n",
+				__func__, __LINE__, bytes_swap);
+		return -EINVAL;
+	}
+
+	chan->dcon |= bytes_swap;
+
+	return 0;
+}
+EXPORT_SYMBOL(s3c2410_dma_setswap);
 
 int s3c2410_dma_setflags(unsigned int channel, unsigned int flags)
 {
@@ -1372,6 +1499,15 @@ int __init s5p_dma_init(unsigned int channels, unsigned int irq,
 
 			/* dma controller's irqs are in order.. */
 			dconp->irq = controller + irq;
+
+			mdma_clock = clk_get(NULL,"mdma");
+			if (IS_ERR(mdma_clock)) {
+				printk(KERN_ERR "Unable to get clock for MDMA [%d] \n",controller);
+				return PTR_ERR(mdma_clock);
+			}
+#ifndef DMA_CLK_GATING
+			clk_enable(mdma_clock);
+#endif
 		} else {
 			dma_base = ioremap((S5P_PA_PDMA + ((controller-1) *
 					   PDMA_BASE_STRIDE)), stride);
@@ -1382,6 +1518,28 @@ int __init s5p_dma_init(unsigned int channels, unsigned int irq,
 
 			/* dma controller's irqs are in order.. */
 			dconp->irq = controller + irq;
+			if (controller == 1) {
+				pdma0_clock = clk_get(NULL,"pdma0");
+				if (IS_ERR(pdma1_clock)) {
+					printk(KERN_ERR "Unable to get clock for PDMA0 [%d] \n",controller);
+					return PTR_ERR(pdma0_clock);
+
+				}
+#ifndef DMA_CLK_GATING
+				clk_enable(pdma0_clock);
+#endif
+
+			} else {
+				pdma1_clock = clk_get(NULL,"pdma1");
+
+				if (IS_ERR(pdma1_clock)) {
+					printk(KERN_ERR "Unable to get clock for PDMA1 [%d] \n",controller);
+					return PTR_ERR(pdma1_clock);
+				}
+#ifndef DMA_CLK_GATING
+				clk_enable(pdma1_clock);
+#endif
+			}
 		}
 
 		dconp->number = controller;

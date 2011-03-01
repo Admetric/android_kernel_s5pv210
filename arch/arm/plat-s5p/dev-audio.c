@@ -339,3 +339,44 @@ struct platform_device s3c64xx_device_ac97 = {
 	},
 };
 EXPORT_SYMBOL(s3c64xx_device_ac97);
+
+/* S/PDIF controller platform device */
+static int s5p_spdif_cfg_gpio(struct platform_device *pdev)
+{
+	s3c_gpio_cfgpin(S5PV210_GPC1(0), (0x3)<<0);
+	s3c_gpio_cfgpin(S5PV210_GPC1(1), (0x3)<<4);
+
+	return 0;
+}
+
+static struct resource s5p_spdif_resource[] = {
+	[0] = {
+		.start = S5PV210_PA_SPDIF,
+		.end   = S5PV210_PA_SPDIF + 0x100 - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = DMACH_SPDIF_OUT,
+		.end   = DMACH_SPDIF_OUT,
+		.flags = IORESOURCE_DMA,
+	},
+};
+
+static struct s3c_audio_pdata s5p_spdif_pdata = {
+	.cfg_gpio = s5p_spdif_cfg_gpio,
+};
+
+static u64 s5p_spdif_dmamask = DMA_BIT_MASK(32);
+
+struct platform_device s5p_device_spdif = {
+	.name		= "s5p-spdif",
+	.id		= 0,	/* to use sclk_audio0 */
+	.num_resources	= ARRAY_SIZE(s5p_spdif_resource),
+	.resource	= s5p_spdif_resource,
+	.dev = {
+		.platform_data = &s5p_spdif_pdata,
+		.dma_mask = &s5p_spdif_dmamask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	},
+};
+EXPORT_SYMBOL(s5p_device_spdif);

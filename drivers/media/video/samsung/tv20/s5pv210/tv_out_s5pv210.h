@@ -579,9 +579,12 @@ extern int s5p_hdmi_register_isr(hdmi_isr isr, u8 irq_num);
 extern void s5p_hdmi_enable_interrupts(enum s5p_tv_hdmi_interrrupt intr);
 extern void s5p_hdmi_disable_interrupts(enum s5p_tv_hdmi_interrrupt intr);
 extern void s5p_hdmi_hpd_gen(void);
+extern u8 s5p_hdmi_get_interrupts(void);
+extern u8 s5p_hdmi_get_enabled_interrupt(void);
+extern int s5p_hdmi_set_dvi(bool en);
+extern void s5p_hdmi_mute_en(bool en);
 
 extern void __iomem *hdmi_base;
-
 extern bool __s5p_start_hdcp(void);
 extern bool __s5p_stop_hdcp(void);
 extern void __s5p_init_hdcp(bool hpd_status, struct i2c_client *ddc_port);
@@ -589,3 +592,4 @@ extern void __s5p_init_hdcp(bool hpd_status, struct i2c_client *ddc_port);
  /* 0 - hdcp stopped, 1 - hdcp started, 2 - hdcp reset */
 extern u8 hdcp_protocol_status;
 
+void  __s5p_hdmi_video_set_bluescreen(bool en, u8 cb, u8 y_g, u8 cr_r);

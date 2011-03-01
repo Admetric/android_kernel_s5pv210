@@ -35,6 +35,9 @@
 #define SDHCI_USE_LEDS_CLASS
 #endif
 
+#define SDHCI_CLK_ON 1
+#define SDHCI_CLK_OFF 0
+
 static unsigned int debug_quirks = 0;
 
 static void sdhci_prepare_data(struct sdhci_host *, struct mmc_data *);
@@ -881,6 +884,22 @@ static void sdhci_finish_data(struct sdhci_host *host)
 		tasklet_schedule(&host->finish_tasklet);
 }
 
+static void sdhci_clock_onoff(struct sdhci_host *host, bool val)
+{
+	u16 clkcon_reg = readw(host->ioaddr + SDHCI_CLOCK_CONTROL);
+
+	clkcon_reg &= ~(SDHCI_CLOCK_CARD_EN);
+
+	if (val) {
+		clkcon_reg |= SDHCI_CLOCK_CARD_EN;
+		/* Set CLKCON register */
+		writew(clkcon_reg, host->ioaddr + SDHCI_CLOCK_CONTROL);
+	} else {
+		/* Set CLKCON register */
+		writew(clkcon_reg, host->ioaddr + SDHCI_CLOCK_CONTROL);
+	}
+}
+
 static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 {
 	int flags;
@@ -888,6 +907,9 @@ static void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	unsigned long timeout;
 
 	WARN_ON(host->cmd);
+	if (host->quirks & SDHCI_QUIRK_INIT_ISSUE_CMD) {
+		host->ops->init_issue_cmd(host);
+	}
 
 	if (host->mmc->caps & MMC_CAP_ATHEROS_WIFI)
 		timeout = 1000;	/* Wait max 1000 ms for atheros BT/WiFi */
@@ -1333,7 +1355,6 @@ static void sdhci_tasklet_finish(unsigned long param)
 		sdhci_reset(host, SDHCI_RESET_CMD);
 		sdhci_reset(host, SDHCI_RESET_DATA);
 	}
-
 	if (host->mmc->caps & MMC_CAP_CLOCK_GATING) {
 		/* Disable the clock for power saving */
 		if (host->clock != 0) {

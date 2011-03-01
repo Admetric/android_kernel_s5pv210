@@ -19,7 +19,7 @@ obj-y				+= irq.o
 obj-y				+= devs.o
 obj-y				+= bootmem.o
 obj-y				+= setup-i2c0.o
-ifndef CONFIG_S5PC11X_HIGH_RES_TIMERS
+ifndef CONFIG_S5P_HIGH_RES_TIMERS
 obj-$(CONFIG_SYSTIMER_S5P)	+= systimer-s5p.o
 else
 ifdef CONFIG_HRT_RTC

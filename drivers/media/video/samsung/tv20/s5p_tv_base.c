@@ -38,13 +38,18 @@
 #include <plat/gpio-cfg.h>
 #include <mach/regs-gpio.h>
 
+#include <linux/earlysuspend.h>
+#if CONFIG_CPU_FREQ_S5PV210
+#include <mach/cpu-freq-v210.h>
+#endif /* CONFIG_CPU_FREQ_S5PV210 */
+
 #ifdef CONFIG_S5PV210_PM
 #include <mach/pd.h>
 #endif
 
 #include "s5p_tv.h"
 
-#ifdef CONFIG_TVOUT_DEBUG
+#ifdef COFIG_TVOUT_DBG
 #define S5P_TV_BASE_DEBUG 1
 #endif
 
@@ -98,6 +103,7 @@ static struct mutex	*mutex_for_fo;
 
 struct s5p_tv_status 	s5ptv_status;
 struct s5p_tv_vo 	s5ptv_overlay[2];
+bool			clks_enabled;
 
 #ifdef I2C_BASE
 static struct mutex	*mutex_for_i2c;
@@ -248,9 +254,9 @@ static irqreturn_t __s5p_hpd_irq(int irq, void *dev_id)
 int tv_phy_power(bool on)
 {
 	if (on) {
+            __s5p_tv_poweron();
 		/* on */
 		clk_enable(s5ptv_status.i2c_phy_clk);
-
 		__s5p_hdmi_phy_power(true);
 
 	} else {
@@ -264,8 +270,8 @@ int tv_phy_power(bool on)
 					s5ptv_status.sclk_pixel);
 
 		__s5p_hdmi_phy_power(false);
-
 		clk_disable(s5ptv_status.i2c_phy_clk);
+		 __s5p_tv_poweroff();
 	}
 
 	return 0;
@@ -274,6 +280,10 @@ int tv_phy_power(bool on)
 
 int s5p_tv_clk_gate(bool on)
 {
+	BASEPRINTK("tv clks are: %d\n", on);
+	if(clks_enabled == on)
+		return 0;
+
 	if (on) {
 #ifdef CONFIG_S5PV210_PM
 		if (s5pv210_pd_enable("vp_pd") < 0) {
@@ -303,6 +313,7 @@ int s5p_tv_clk_gate(bool on)
 		}
 #endif
 		clk_enable(s5ptv_status.hdmi_clk);
+		clks_enabled = true;
 
 	} else {
 
@@ -335,6 +346,7 @@ int s5p_tv_clk_gate(bool on)
 			goto err_pm;
 		}
 #endif
+		clks_enabled = false;
 	}
 
 	return 0;
@@ -345,12 +357,15 @@ err_pm:
 }
 EXPORT_SYMBOL(s5p_tv_clk_gate);
 
-#define TV_CLK_GET_WITH_ERR_CHECK(clk, pdev, clk_name)			     \
-	clk = clk_get(&pdev->dev, clk_name);				     \
-	if (IS_ERR(clk)) {						     \
-		printk(KERN_ERR  "failed to find clock \"%s\"\n", clk_name); \
-		return ENOENT;						     \
-	}
+#define TV_CLK_GET_WITH_ERR_CHECK(clk, pdev, clk_name)			\
+	do {							        \
+		clk = clk_get(&pdev->dev, clk_name);			\
+		if (IS_ERR(clk)) {					\
+			printk(KERN_ERR					\
+			"failed to find clock \"%s\"\n", clk_name); 	\
+			return ENOENT;					\
+		}							\
+	} while (0);
 
 static int __devinit tv_clk_get(struct platform_device *pdev,
 	struct s5p_tv_status *ctrl)
@@ -419,23 +434,12 @@ static irqreturn_t s5p_tvenc_irq(int irq, void *dev_id)
 #ifdef CONFIG_TV_FB
 static int s5p_tv_open(struct file *file)
 {
-	/*
-	 * for first open
-	 * when boot up time this parameter is set.
-	 */
-	if (s5ptv_status.tvout_output_enable)
-		_s5p_tv_if_stop();
-
 	return 0;
 }
 
 static int s5p_tv_release(struct file *file)
 {
 	s5ptv_status.hdcp_en = false;
-
-	if (s5ptv_status.tvout_output_enable)
-		_s5p_tv_if_stop();
-
 	return 0;
 }
 
@@ -480,8 +484,22 @@ static int s5p_tv_v_open(struct file *file)
 	}
 
 #ifdef CONFIG_CPU_S5PV210
-	s5p_tv_clk_gate(true);
-	tv_phy_power(true);
+#ifdef CONFIG_PM 
+	if((s5ptv_status.hpd_status) && !(s5ptv_status.suspend_status))
+	{
+		BASEPRINTK("tv is turned on\n");
+#endif
+#ifdef CONFIG_CPU_FREQ_S5PV210
+		if((s5ptv_status.hpd_status))
+			s5pv210_set_cpufreq_level(RESTRICT_TABLE);
+#endif /* CONFIG_CPU_FREQ_S5PV210 */
+		s5p_tv_clk_gate( true );
+		tv_phy_power( true );
+#ifdef CONFIG_PM
+	}
+	else
+		BASEPRINTK("tv is off\n");
+#endif
 #endif
 	_s5p_tv_if_init_param();
 
@@ -530,8 +548,18 @@ int s5p_tv_v_mmap(struct file *filp, struct vm_area_struct *vma)
 
 int s5p_tv_v_release(struct file *filp)
 {
-	_s5p_vlayer_stop();
-	_s5p_tv_if_stop();
+#if defined(CONFIG_CPU_S5PV210) && defined(CONFIG_PM)
+	if((s5ptv_status.hpd_status) && !(s5ptv_status.suspend_status))
+	{
+#endif
+		if(s5ptv_status.vp_layer_enable)
+			_s5p_vlayer_stop();
+		if(s5ptv_status.tvout_output_enable)
+			_s5p_tv_if_stop();
+#if defined(CONFIG_CPU_S5PV210) && defined(CONFIG_PM)
+	}else
+		s5ptv_status.vp_layer_enable = false;
+#endif 
 
 	s5ptv_status.hdcp_en = false;
 
@@ -553,8 +581,20 @@ int s5p_tv_v_release(struct file *filp)
 #endif
 
 #ifdef CONFIG_CPU_S5PV210
-	s5p_tv_clk_gate(false);
-	tv_phy_power(false);
+#ifdef CONFIG_PM
+	if((s5ptv_status.hpd_status) && !(s5ptv_status.suspend_status))
+	{
+#endif
+		s5p_tv_clk_gate(false);
+		tv_phy_power( false );
+#ifdef CONFIG_CPU_FREQ_S5PV210
+		if(s5ptv_status.hpd_status)
+			s5pv210_set_cpufreq_level(NORMAL_TABLE);
+#endif /* CONFIG_CPU_FREQ_S5PV210 */
+
+#ifdef CONFIG_PM
+	}
+#endif
 #endif
 
 	return 0;
@@ -829,19 +869,114 @@ struct video_device s5p_tvout[] = {
 #endif
 };
 
-void s5p_tv_kobject_uevent(void)
+void s5p_handle_cable(void)
 {
-	int hpd_state = s5p_hpd_get_state();
+    char env_buf[120];
+    char *envp[2];
+    int env_offset = 0;
 
-	if (hpd_state) {
-		printk(KERN_ERR "Event] Send UEvent = %d\n", hpd_state);
-		kobject_uevent(&(s5p_tvout[0].dev.kobj), KOBJ_ADD);
-		kobject_uevent(&(s5p_tvout[1].dev.kobj), KOBJ_ADD);
-	} else {
-		printk(KERN_ERR "Event] Send UEvent = %d\n", hpd_state);
-		kobject_uevent(&(s5p_tvout[0].dev.kobj), KOBJ_REMOVE);
-		kobject_uevent(&(s5p_tvout[1].dev.kobj), KOBJ_REMOVE);
-	}
+    if(s5ptv_status.tvout_param.out_mode != TVOUT_OUTPUT_HDMI &&
+		    s5ptv_status.tvout_param.out_mode != TVOUT_OUTPUT_HDMI_RGB &&
+		    s5ptv_status.tvout_param.out_mode != TVOUT_OUTPUT_DVI)
+        return;
+
+    bool previous_hpd_status = s5ptv_status.hpd_status;
+#ifdef CONFIG_HDMI_HPD
+    s5ptv_status.hpd_status= s5p_hpd_get_state();
+#else
+    return;
+#endif
+    
+    memset(env_buf, 0, sizeof(env_buf));
+
+    if(previous_hpd_status == s5ptv_status.hpd_status)
+    {
+        BASEPRINTK("same hpd_status value: %d\n", previous_hpd_status);
+        return;
+    }
+
+    if(s5ptv_status.hpd_status)
+    {
+        BASEPRINTK("\n hdmi cable is connected \n");			
+        sprintf(env_buf, "HDMI_STATE=online");
+        envp[env_offset++] = env_buf;
+        envp[env_offset] = NULL;
+        kobject_uevent_env(&(s5p_tvout[0].dev.kobj), KOBJ_CHANGE, envp);
+
+        if(s5ptv_status.suspend_status)
+            return;
+
+#ifdef CONFIG_CPU_FREQ_S5PV210
+        s5pv210_set_cpufreq_level(RESTRICT_TABLE);
+#endif /* CONFIG_CPU_FREQ_S5PV210 */
+
+    #ifdef CONFIG_PM
+        s5p_tv_clk_gate( true );
+        tv_phy_power( true );
+    #endif
+        /* tv on */
+        if ( s5ptv_status.tvout_output_enable )
+                _s5p_tv_if_start();
+
+        /* video layer start */
+        if ( s5ptv_status.vp_layer_enable )
+                _s5p_vlayer_start();
+
+        /* grp0 layer start */
+        if ( s5ptv_status.grp_layer_enable[0] )
+                _s5p_grp_start(VM_GPR0_LAYER);
+
+        /* grp1 layer start */
+        if ( s5ptv_status.grp_layer_enable[1] )
+                _s5p_grp_start(VM_GPR1_LAYER);
+
+    }
+    else{
+        BASEPRINTK("\n hdmi cable is disconnected \n");
+
+        sprintf(env_buf, "HDMI_STATE=offline");
+        envp[env_offset++] = env_buf;
+        envp[env_offset] = NULL;
+        kobject_uevent_env(&(s5p_tvout[0].dev.kobj), KOBJ_CHANGE, envp);
+
+        if(s5ptv_status.suspend_status)
+            return;
+
+        if ( s5ptv_status.vp_layer_enable ) {
+            _s5p_vlayer_stop();
+            s5ptv_status.vp_layer_enable = true;
+
+        }
+
+        /* grp0 layer stop */
+        if ( s5ptv_status.grp_layer_enable[0] ) {
+            _s5p_grp_stop(VM_GPR0_LAYER);
+            s5ptv_status.grp_layer_enable[VM_GPR0_LAYER] = true;
+        }
+
+        /* grp1 layer stop */
+        if ( s5ptv_status.grp_layer_enable[1] ) {
+            _s5p_grp_stop(VM_GPR1_LAYER);
+            s5ptv_status.grp_layer_enable[VM_GPR0_LAYER] = true;
+        }
+
+        /* tv off */
+        if ( s5ptv_status.tvout_output_enable ) {
+            _s5p_tv_if_stop();
+            s5ptv_status.tvout_output_enable = true;
+            s5ptv_status.tvout_param_available = true;
+        }
+
+    #ifdef CONFIG_PM
+        /* clk & power off */
+        s5p_tv_clk_gate( false );
+        tv_phy_power( false );
+    #endif
+
+#ifdef CONFIG_CPU_FREQ_S5PV210
+        s5pv210_set_cpufreq_level(NORMAL_TABLE);
+#endif /* CONFIG_CPU_FREQ_S5PV210 */
+    }
 }
 
 #define S5P_TVMAX_CTRLS 	ARRAY_SIZE(s5p_tvout)
@@ -856,15 +991,11 @@ static int __devinit s5p_tv_probe(struct platform_device *pdev)
 	int 	i;
 
 	s5ptv_status.dev_fb = &pdev->dev;
+	clks_enabled = 0;
 
 	__s5p_sdout_probe(pdev, 0);
 	__s5p_vp_probe(pdev, 1);
 	__s5p_mixer_probe(pdev, 2);
-
-#ifdef CONFIG_CPU_S5PV210
-	__s5p_hdmi_probe(pdev, 3, 4);
-	__s5p_hdcp_init();
-#endif
 
 #ifdef CONFIG_CPU_S5PC100
 	__s5p_hdmi_probe(pdev, 3);
@@ -874,7 +1005,12 @@ static int __devinit s5p_tv_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_CPU_S5PV210
 	tv_clk_get(pdev, &s5ptv_status);
+	s5p_tv_clk_gate( true );
 #endif
+#ifdef CONFIG_CPU_S5PV210	
+	__s5p_hdmi_probe(pdev, 3, 4);
+	__s5p_hdcp_init( );
+#endif	
 
 #ifdef FIX_27M_UNSTABLE_ISSUE /* for smdkc100 pop */
 	writel(0x1, S5PC1XX_GPA0_BASE + 0x56c);
@@ -893,26 +1029,31 @@ static int __devinit s5p_tv_probe(struct platform_device *pdev)
 	s3c_gpio_cfgpin(S5PC1XX_GPH0(5), S3C_GPIO_SFN(2));
 	s3c_gpio_setpull(S5PC1XX_GPH0(5), S3C_GPIO_PULL_UP);
 
-	s5ptv_status.hpd_status = gpio_get_value(S5PC1XX_GPH0(5))
-		? false : true;
-
-	dev_info(&pdev->dev, "hpd status is cable %s\n",
-		s5ptv_status.hpd_status ? "inserted" : "removed");
+	s5ptv_status.hpd_status = gpio_get_value(S5PC1XX_GPH0(5)) 
+		? false:true;
 #endif
+
+#ifdef CONFIG_CPU_S5PV210
+#ifdef CONFIG_HDMI_HPD
+    s5ptv_status.hpd_status= s5p_hpd_get_state();
+#else
+    s5ptv_status.hpd_status= 0;
+#endif    
+#endif
+	dev_info(&pdev->dev, "hpd status is cable %s\n", 
+		s5ptv_status.hpd_status ? "inserted":"removed");
+
 
 	/* interrupt */
 	TVOUT_IRQ_INIT(irq_num, ret, pdev, 0, out, __s5p_mixer_irq, "mixer");
-	TVOUT_IRQ_INIT(irq_num, ret, pdev, 1, out_hdmi_irq, __s5p_hdmi_irq ,
-		"hdmi");
-	TVOUT_IRQ_INIT(irq_num, ret, pdev, 2, out_tvenc_irq, s5p_tvenc_irq,
-		"tvenc");
-
-#ifdef CONFIG_CPU_S5PC100
-	TVOUT_IRQ_INIT(irq_num, ret, pdev, 3, out_hpd_irq, __s5p_hpd_irq,
-		"hpd");
+	TVOUT_IRQ_INIT(irq_num, ret, pdev, 1, out_hdmi_irq, __s5p_hdmi_irq , "hdmi");
+	TVOUT_IRQ_INIT(irq_num, ret, pdev, 2, out_tvenc_irq, s5p_tvenc_irq, "tvenc");
+	
+#ifdef CONFIG_CPU_S5PC100	
+	TVOUT_IRQ_INIT(irq_num, ret, pdev, 3, out_hpd_irq, __s5p_hpd_irq, "hpd");
+	set_irq_type(IRQ_EINT5, IRQ_TYPE_LEVEL_LOW);
 #endif
 
-	set_irq_type(IRQ_EINT5, IRQ_TYPE_LEVEL_LOW);
 
 	/* v4l2 video device registration */
 	for (i = 0; i < S5P_TVMAX_CTRLS; i++) {
@@ -934,11 +1075,7 @@ static int __devinit s5p_tv_probe(struct platform_device *pdev)
 	/* for default start up */
 	_s5p_tv_if_init_param();
 
-#ifdef CONFIG_CPU_S5PV210
-	s5ptv_status.tvout_param.disp_mode = TVOUT_1080P_60;
-#else
 	s5ptv_status.tvout_param.disp_mode = TVOUT_720P_60;
-#endif
 	s5ptv_status.tvout_param.out_mode  = TVOUT_OUTPUT_HDMI;
 
 #ifndef CONFIG_USER_ALLOC_TVOUT
@@ -982,6 +1119,13 @@ static int __devinit s5p_tv_probe(struct platform_device *pdev)
 #endif
 	mutex_init(mutex_for_fo);
 
+#ifdef CONFIG_CPU_S5PV210
+	/* added for phy cut off when boot up */
+	clk_enable(s5ptv_status.i2c_phy_clk);
+	__s5p_hdmi_phy_power(false);
+	clk_disable(s5ptv_status.i2c_phy_clk);
+	s5p_tv_clk_gate( false );
+#endif
 	return 0;
 
 #ifdef CONFIG_TV_FB
@@ -1041,7 +1185,9 @@ static int s5p_tv_remove(struct platform_device *pdev)
 	free_irq(IRQ_MIXER, pdev);
 	free_irq(IRQ_HDMI, pdev);
 	free_irq(IRQ_TVENC, pdev);
+#ifdef CONFIG_CPU_S5PC100	
 	free_irq(IRQ_EINT5, pdev);
+#endif
 
 	mutex_destroy(mutex_for_fo);
 #ifdef I2C_BASE
@@ -1056,54 +1202,89 @@ static int s5p_tv_remove(struct platform_device *pdev)
 /*
  *  Suspend
  */
-int s5p_tv_suspend(struct platform_device *dev, pm_message_t state)
+int s5p_tv_early_suspend(struct platform_device *dev, pm_message_t state)
 {
-	/* video layer stop */
-	if (s5ptv_status.vp_layer_enable) {
-		_s5p_vlayer_stop();
-		s5ptv_status.vp_layer_enable = true;
+    BASEPRINTK("(hpd_status = %d)++\n", s5ptv_status.hpd_status);
 
-	}
+    mutex_lock(mutex_for_fo);
+    s5ptv_status.suspend_status = true;
 
-	/* grp0 layer stop */
-	if (s5ptv_status.grp_layer_enable[0]) {
-		_s5p_grp_stop(VM_GPR0_LAYER);
-		s5ptv_status.grp_layer_enable[VM_GPR0_LAYER] = true;
-	}
+    if(!(s5ptv_status.hpd_status))
+    {
+	    mutex_unlock(mutex_for_fo);
+	    return 0;
+    }
+    else
+    {
+	    /* video layer stop */
+	    if ( s5ptv_status.vp_layer_enable ) {
+		    _s5p_vlayer_stop();
+		    s5ptv_status.vp_layer_enable = true;
 
-	/* grp1 layer stop */
-	if (s5ptv_status.grp_layer_enable[1]) {
-		_s5p_grp_stop(VM_GPR1_LAYER);
-		s5ptv_status.grp_layer_enable[VM_GPR0_LAYER] = true;
-	}
+	    }
 
-	/* tv off */
-	if (s5ptv_status.tvout_output_enable) {
-		_s5p_tv_if_stop();
-		s5ptv_status.tvout_output_enable = true;
-		s5ptv_status.tvout_param_available = true;
+	    /* grp0 layer stop */
+	    if ( s5ptv_status.grp_layer_enable[0] ) {
+		    _s5p_grp_stop(VM_GPR0_LAYER);
+		    s5ptv_status.grp_layer_enable[VM_GPR0_LAYER] = true;
+	    }
 
-		/* clk & power off */
-		s5p_tv_clk_gate(false);
-		tv_phy_power(false);
+	    /* grp1 layer stop */
+	    if ( s5ptv_status.grp_layer_enable[1] ) {
+		    _s5p_grp_stop(VM_GPR1_LAYER);
+		    s5ptv_status.grp_layer_enable[VM_GPR0_LAYER] = true;
+	    }
 
-	}
+	    /* tv off */
+	    if ( s5ptv_status.tvout_output_enable ) {
+		    _s5p_tv_if_stop();
+		    s5ptv_status.tvout_output_enable = true;
+		    s5ptv_status.tvout_param_available = true;
+	    }
 
-	return 0;
+	    /* clk & power off */
+	    s5p_tv_clk_gate( false );
+	    if(s5ptv_status.tvout_param.out_mode == TVOUT_OUTPUT_HDMI || s5ptv_status.tvout_param.out_mode == TVOUT_OUTPUT_HDMI_RGB)
+		    tv_phy_power( false );
+
+#ifdef CONFIG_CPU_FREQ_S5PV210
+	    s5pv210_set_cpufreq_level(NORMAL_TABLE);
+#endif /* CONFIG_CPU_FREQ_S5PV210 */
+    }
+
+    mutex_unlock(mutex_for_fo);
+    BASEPRINTK("()--\n");
+    return 0;
 }
 
 /*
  *  Resume
  */
-int s5p_tv_resume(struct platform_device *dev)
+int s5p_tv_late_resume(struct platform_device *dev)
 {
+    BASEPRINTK("(hpd_status = %d)++\n", s5ptv_status.hpd_status);
+
+    mutex_lock(mutex_for_fo);
+    s5ptv_status.suspend_status = false;
+
+    if(!(s5ptv_status.hpd_status))
+    {
+	    mutex_unlock(mutex_for_fo);
+	    return 0;
+    }
+    else
+    {
+#ifdef CONFIG_CPU_FREQ_S5PV210
+		s5pv210_set_cpufreq_level(RESTRICT_TABLE);
+#endif /* CONFIG_CPU_FREQ_S5PV210 */
+
+	/* clk & power on */
+	s5p_tv_clk_gate( true );
+	if(s5ptv_status.tvout_param.out_mode == TVOUT_OUTPUT_HDMI || s5ptv_status.tvout_param.out_mode == TVOUT_OUTPUT_HDMI_RGB)
+	    tv_phy_power( true );
+
 	/* tv on */
 	if (s5ptv_status.tvout_output_enable) {
-
-		/* clk & power on */
-		s5p_tv_clk_gate(true);
-		tv_phy_power(true);
-
 		_s5p_tv_if_start();
 	}
 
@@ -1125,19 +1306,38 @@ int s5p_tv_resume(struct platform_device *dev)
 		s5ptvfb_set_par(s5ptv_status.fb);
 	}
 #endif
-
-	return 0;
+    }
+    mutex_unlock(mutex_for_fo);
+    BASEPRINTK("()--\n");
+    return 0;
 }
 #else
 #define s5p_tv_suspend NULL
 #define s5p_tv_resume NULL
 #endif
 
+#ifdef CONFIG_PM
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static struct early_suspend s5p_tv_early_suspend_desc = {
+     .level = EARLY_SUSPEND_LEVEL_STOP_DRAWING,
+     .suspend = s5p_tv_early_suspend,
+     .resume = s5p_tv_late_resume,
+};
+#endif
+#endif
+
 static struct platform_driver s5p_tv_driver = {
 	.probe		= s5p_tv_probe,
 	.remove		= s5p_tv_remove,
-	.suspend	= s5p_tv_suspend,
-	.resume		= s5p_tv_resume,
+	#ifdef CONFIG_PM
+        #ifndef CONFIG_HAS_EARLYSUSPEND
+	.suspend	= s5p_tv_early_suspend,
+	.resume		= s5p_tv_late_resume,
+        #endif
+	#else
+	.suspend 	= NULL,
+	.resume  	= NULL,
+	#endif
 	.driver		= {
 		.name	= "s5p-tvout",
 		.owner	= THIS_MODULE,
@@ -1160,11 +1360,21 @@ int __init s5p_tv_init(void)
 		return -1;
 	}
 
+#ifdef CONFIG_PM
+#ifdef CONFIG_HAS_EARLYSUSPEND
+    register_early_suspend(&s5p_tv_early_suspend_desc);
+#endif
+#endif
 	return 0;
 }
 
 static void __exit s5p_tv_exit(void)
 {
+#ifdef CONFIG_PM
+#ifdef CONFIG_HAS_EARLYSUSPEND
+    unregister_early_suspend(&s5p_tv_early_suspend_desc);
+#endif
+#endif
 	platform_driver_unregister(&s5p_tv_driver);
 }
 

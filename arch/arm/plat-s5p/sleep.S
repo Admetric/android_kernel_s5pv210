@@ -39,6 +39,8 @@
 #include <mach/regs-mem.h>
 #include <plat/regs-serial.h>
 
+#define NO_L2_CLEAN
+
 /* CONFIG_DEBUG_RESUME is dangerous if your bootloader does not
  * reset the UART configuration, only enable if you really need this!
 */
@@ -65,6 +67,11 @@ ENTRY(s3c_cpu_save)
 	mrc	p15, 0, r12, c10, c2, 0	@ Read PRRR
 	mrc	p15, 0, r3, c10, c2, 1	@ READ NMRR
 
+	ldr	r2, =S5P_INFORM1
+	ldr	r1, [r2]
+	cmp	r1, #0x0
+	bne	idle2_save
+
 	stmia	r0, { r3 - r13 }
 
 	@@ write our state back to RAM
@@ -76,10 +83,33 @@ ENTRY(s3c_cpu_save)
 	ldr	r0, [ r0 ]
 	mov	pc, r0
 
+idle2_save:
+	/* Save CP15 registers */
+	stmia	r0, { r3 - r13 }
+
+	bl s5p_idle2
+	@@ jump to final code to send system to sleep
+	ldr     r0, =s5p_idle2
+	@@ldr   pc, [ r0 ]
+	ldr     r0, [ r0 ]
+	mov     pc, r0
+
 	@@ return to the caller, after having the MMU
 	@@ turned on, this restores the last bits from the
 	@@ stack
 resume_with_mmu:
+#if defined(NO_L2_CLEAN)
+	ldr	r0, =S5P_INFORM1
+	ldr	r1, [r0]
+	cmp	r1, #0x0
+	beq	skip_l2_enable
+
+	mrc     p15, 0, r0, c1, c0, 1	@enable L2 cache
+	orr     r0, r0, #(1<<1)
+	mcr     p15, 0, r0, c1, c0, 1
+#endif
+skip_l2_enable:
+	mov	r0, #1
 	/* delete added mmu table list */
 	ldr	r9 , =(PAGE_OFFSET - PHYS_OFFSET)
 	add	r4, r4, r9
@@ -130,7 +160,10 @@ ENTRY(s3c_cpu_resume)
 	mcr	p15, 0, r1, c8, c7, 0		@@ invalidate TLBs
 	mcr	p15, 0, r1, c7, c5, 0		@@ invalidate I Cache
 
-	ldr	r0, s3c_sleep_save_phys	@ address of restore block
+	ldr	r1, =0xe010f008		@ Read INFORM2 register
+	ldr	r0, [r1]		@ Load phy_regs_save value
+	ldr	r1, =0xe010f004		@ Read INFORM1 register
+	ldr	r1, [r1]
 	ldmia	r0, { r3 - r13 }
 
 	mcr	p15, 0, r4, c13, c0, 0	@ FCSE/PID
@@ -140,7 +173,11 @@ ENTRY(s3c_cpu_resume)
 	mcr	p15, 0, r7, c2, c0, 1	@ Translation Table BASE1
 	mcr	p15, 0, r6, c2, c0, 0	@ Translation Table BASE0
 
+#if defined(NO_L2_CLEAN)
+	cmp	r1, #0x0		@ if idle2 wakeup
+	bicne	r10, r10, #(1<<1)	@ disable L2cache
 	mcr	p15, 0, r10, c1, c0, 1	@ Auxiliary control register
+#endif
 
 	mov	r0, #0
 	mcr	p15, 0, r0, c8, c7, 0	@ Invalidate I & D TLB
@@ -168,7 +205,6 @@ ENTRY(s3c_cpu_resume)
 	orr	r10, r10, r5
 
 	/* back up originally data */
-
 	ldr	r12, [r4]
 
 	/* Added list about mmu */

@@ -16,9 +16,15 @@
 #define HPD_LO          0
 #define HPD_HI          1
 
+#define HDMI_ON 	1
+#define HDMI_OFF 	0
+
 struct hpd_struct {
 	spinlock_t lock;
 	wait_queue_head_t waitq;
 	atomic_t state;
 };
+
+extern int s5p_hpd_set_eint(void);
+extern int s5p_hpd_set_hdmiint(void);
 

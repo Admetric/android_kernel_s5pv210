@@ -146,6 +146,21 @@ extern s3c_gpio_pull_t s3c_gpio_getpull_updown(struct s3c_gpio_chip *chip,
 					       unsigned int off);
 
 /**
+ * s3c_gpio_setpin_updown() - Output level setting of the Pin
+ * @chip: The gpio chip that is being configured.
+ * @off: The offset for the GPIO being configured.
+ * @param: level: The output level being requested.
+ *
+ * This is a helper function for setting output level of a GPIO pin
+ * set in OUTPUT mode.
+ *  0 = Low Level
+ *  1 = High Level
+*/
+extern int s3c_gpio_setpin_updown(struct s3c_gpio_chip *chip,
+                  unsigned int off, s3c_gpio_pull_t level);
+
+
+/**
  * s3c_gpio_setpull_s3c2443() - Pull configuration for s3c2443.
  * @chip: The gpio chip that is being configured.
  * @off: The offset for the GPIO being configured.

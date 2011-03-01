@@ -13,10 +13,7 @@
 #ifndef __ASM_ARCH_SYSTEM_H
 #define __ASM_ARCH_SYSTEM_H __FILE__
 
-#include <mach/hardware.h>
 #include <plat/watchdog-reset.h>
-
-void (*s5pv2xx_reset_hook)(void);
 
 static void arch_idle(void)
 {
@@ -25,16 +22,10 @@ static void arch_idle(void)
 
 static void arch_reset(char mode, const char *cmd)
 {
-	if (mode == 's') {
-		cpu_reset(0);
-	}
+	if (mode != 's')
+		arch_wdt_reset();
 
-	if (s5pv2xx_reset_hook)
-		s5pv2xx_reset_hook();
-
-	arch_wdt_reset();
-
-	/* we'll take a jump through zero as a poor second */
+	/* if all else fails, or mode was for soft, jump to 0 */
 	cpu_reset(0);
 }
 

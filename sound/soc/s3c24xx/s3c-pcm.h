@@ -119,6 +119,9 @@ struct s3c_pcm_info {
 
 	struct s3c_dma_params	*dma_playback;
 	struct s3c_dma_params	*dma_capture;
+
+	u32	suspend_clkctl;
+	u32	suspend_ctl;
 };
 
 extern struct snd_soc_dai s3c_pcm_dai[];

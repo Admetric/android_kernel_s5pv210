@@ -170,6 +170,7 @@ static struct resource s3c_ts_resource[] = {
 		.end   = IRQ_TC,
 		.flags = IORESOURCE_IRQ,
 	},
+
 };
 
 struct platform_device s3c_device_ts = {

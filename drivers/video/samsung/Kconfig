@@ -8,6 +8,7 @@ config FB_S3C
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
 	select FRAMEBUFFER_CONSOLE_DETECT_PRIMARY
+	select FB_DEFERRED_IO
 	depends on FB && ARCH_S5PV210
 	default n
 	help
@@ -71,7 +72,7 @@ config FB_S3C_Y_VRES
 config VIDEO_SAMSUNG_MEMSIZE_FIMD
 	int "Memory size in kbytes for FIMD"
 	depends on FB_S3C
-	default "24576"
+	default "3072"
 
 choice
 depends on FB_S3C
@@ -80,8 +81,20 @@ default FB_S3C_LTE480WV
 config FB_S3C_LTE480WV
 	bool "LTE480WV"
 	depends on MACH_SMDKV210 || MACH_SMDKC110
+	select BACKLIGHT_PWM
 	help
 	  This enables support for Samsung LTE480WV 4.8\" WVGA LCD panel
+
+config FB_S3C_TL2796
+        bool "TL2796"
+	depends on (MACH_SMDKC110 || MACH_SMDKV210)
+	select SPI
+	select SPI_GPIO
+	select SPI_BITBANG
+	select BACKLIGHT_TL2796_AMOLED
+
+	---help---
+	  This enables support for Samsung TL2796 WVGA LCD panel
 
 config FB_S3C_HT101HD1
 	bool "HT101HD1"

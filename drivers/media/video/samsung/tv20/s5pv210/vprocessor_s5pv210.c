@@ -25,7 +25,7 @@
 #include <mach/regs-vprocessor.h>
 #include "vp_coeff_s5pv210.h"
 
-#ifdef CONFIG_TVOUT_RAW_DBG
+#ifdef COFIG_TVOUT_RAW_DBG
 #define S5P_VP_DEBUG 1
 #endif
 

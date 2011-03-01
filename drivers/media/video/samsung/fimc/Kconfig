@@ -1,5 +1,5 @@
 config VIDEO_FIMC
-	tristate "Samsung Camera Interface (FIMC) driver"
+	bool "Samsung Camera Interface (FIMC) driver"
 	depends on VIDEO_SAMSUNG && ARCH_S5PV210
 	select VIDEO_IPC if ARCH_S5PV210
 	default n

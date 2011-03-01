@@ -55,7 +55,8 @@ int s3c_mem_ioctl(struct inode *inode, struct file *file,
 #else
 	unsigned long *virt_addr;
 #endif
-
+    void *flush_start, *flush_end;
+    
 	struct mm_struct *mm = current->mm;
 	struct s3c_mem_alloc param;
 
@@ -277,6 +278,105 @@ int s3c_mem_ioctl(struct inode *inode, struct file *file,
 
 		mutex_unlock(&mem_share_free_lock);
 
+		break;
+
+	case S3C_MEM_CACHE_FLUSH:
+		mutex_lock(&mem_dma_cache_lock);
+
+		if (copy_from_user(&param, (struct s3c_mem_alloc *)arg,
+			sizeof(struct s3c_mem_alloc))) {
+			mutex_unlock(&mem_dma_cache_lock);
+			return -EFAULT;
+		}
+
+		if(param.size == 0){
+			DEBUG("S3C_MEM_CACHE_FLUSH : param.size == 0\n", __LINE__);
+			mutex_unlock(&mem_dma_cache_lock);
+			return -EFAULT;
+		}
+		if(param.vir_addr == 0)
+		{
+			if(param.phy_addr == 0)
+			{
+				DEBUG("S3C_MEM_CACHE_FLUSH : param.vir_addr == 0 and param.phy_addr == 0\n", __LINE__);
+				mutex_unlock(&mem_dma_cache_lock);
+				return -EFAULT;
+			}
+			flush_start = phys_to_virt(param.phy_addr);
+		}
+        	else
+           		flush_start = (void *)param.vir_addr;
+
+		flush_end = flush_start + param.size;
+
+		dmac_flush_range(flush_start, flush_end);
+		mutex_unlock(&mem_dma_cache_lock);
+		break;
+
+	case S3C_MEM_CACHE_INVAL:
+		mutex_lock(&mem_dma_cache_lock);
+
+		if (copy_from_user(&param, (struct s3c_mem_alloc *)arg,
+			sizeof(struct s3c_mem_alloc))) {
+			mutex_unlock(&mem_dma_cache_lock);
+			return -EFAULT;
+		}
+
+		if(param.size == 0){
+			DEBUG("S3C_MEM_CACHE_INVAL : param.size == 0\n", __LINE__);
+			mutex_unlock(&mem_dma_cache_lock);
+			return -EFAULT;
+		}
+		if(param.vir_addr == 0)
+		{
+			if(param.phy_addr == 0)
+			{
+				DEBUG("S3C_MEM_CACHE_INVAL : param.vir_addr == 0 and param.phy_addr == 0\n", __LINE__);
+				mutex_unlock(&mem_dma_cache_lock);
+				return -EFAULT;
+			}
+			flush_start = phys_to_virt(param.phy_addr);
+		}
+		else
+            		flush_start = (void *)param.vir_addr;
+
+		flush_end = flush_start + param.size;
+
+		dmac_inv_range(flush_start, flush_end);
+		mutex_unlock(&mem_dma_cache_lock);
+		break;
+
+	case S3C_MEM_CACHE_CLEAN:
+		mutex_lock(&mem_dma_cache_lock);
+
+		if (copy_from_user(&param, (struct s3c_mem_alloc *)arg,
+			sizeof(struct s3c_mem_alloc))) {
+			mutex_unlock(&mem_dma_cache_lock);
+			return -EFAULT;
+		}
+
+		if(param.size == 0){
+			DEBUG("S3C_MEM_CACHE_CLEAN : param.size == 0\n", __LINE__);
+			mutex_unlock(&mem_dma_cache_lock);
+			return -EFAULT;
+		}
+		if(param.vir_addr == 0)
+		{
+			if(param.phy_addr == 0)
+			{
+				DEBUG("S3C_MEM_CACHE_CLEAN : param.vir_addr == 0 and param.phy_addr == 0\n", __LINE__);
+				mutex_unlock(&mem_dma_cache_lock);
+				return -EFAULT;
+			}
+			flush_start = phys_to_virt(param.phy_addr);
+		}
+		else
+			flush_start = (void *)param.vir_addr;
+
+		flush_end = flush_start + param.size;
+
+		dmac_clean_range(flush_start, flush_end);
+		mutex_unlock(&mem_dma_cache_lock);
 		break;
 
 	default:

@@ -64,6 +64,8 @@ static int s5p_irq_eint_set_type(unsigned int irq, unsigned int type)
 	int shift;
 	u32 ctrl, mask;
 	u32 newvalue = 0;
+	unsigned short level_triggered = 0;
+	struct irq_desc *desc = irq_desc + irq;
 
 	switch (type) {
 	case IRQ_TYPE_NONE:
@@ -75,7 +77,7 @@ static int s5p_irq_eint_set_type(unsigned int irq, unsigned int type)
 		break;
 
 	case IRQ_TYPE_EDGE_FALLING:
-		newvalue = S5P_EXTINT_RISEEDGE;
+		newvalue = S5P_EXTINT_FALLEDGE;
 		break;
 
 	case IRQ_TYPE_EDGE_BOTH:
@@ -84,10 +86,12 @@ static int s5p_irq_eint_set_type(unsigned int irq, unsigned int type)
 
 	case IRQ_TYPE_LEVEL_LOW:
 		newvalue = S5P_EXTINT_LOWLEV;
+		level_triggered = 1;
 		break;
 
 	case IRQ_TYPE_LEVEL_HIGH:
 		newvalue = S5P_EXTINT_HILEV;
+		level_triggered = 1;
 		break;
 
 	default:
@@ -117,6 +121,11 @@ static int s5p_irq_eint_set_type(unsigned int irq, unsigned int type)
 
 	else
 		printk(KERN_ERR "No such irq number %d", offs);
+
+	if (level_triggered)
+		desc->handle_irq = handle_level_irq;
+	else
+		desc->handle_irq = handle_edge_irq;
 
 	return 0;
 }

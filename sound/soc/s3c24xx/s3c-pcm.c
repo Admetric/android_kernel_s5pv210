@@ -28,6 +28,7 @@
 
 #include <plat/audio.h>
 #include <mach/dma.h>
+#include <mach/pd.h>
 
 #include "s3c-dma.h"
 #include "s3c-pcm.h"
@@ -48,9 +49,77 @@ static struct s3c_pcm_info s3c_pcm[MAX_PCM];
 struct snd_soc_dai s3c_pcm_dai[MAX_PCM];
 EXPORT_SYMBOL_GPL(s3c_pcm_dai);
 
+/* For PCM Clock/Power Gating */
+static char *pcm_pd_name[3] = { "pcm0_pd", "pcm1_pd", "pcm2_pd" };
+static int tx_clk_enabled = 0;
+static int rx_clk_enabled = 0;
+static int audio_clk_gated = 0; /* At first, clock & pcm_pd is enabled in probe() */
+static int suspended_by_pm = 0;
+
 static inline struct s3c_pcm_info *to_info(struct snd_soc_dai *cpu_dai)
 {
 	return cpu_dai->private_data;
+}
+
+void s3c_pcm_set_clk_enabled(struct snd_soc_dai *dai, bool state)
+{
+	struct s3c_pcm_info *pcm = to_info(dai);
+
+	pr_debug("..entering %s \n", __func__);
+
+	if (pcm->cclk == NULL) return;
+
+	if (state) {
+		if (!audio_clk_gated) {
+			pr_debug("already audio clock is enabled! \n");
+			return;
+		}
+
+		s5pv210_pd_enable(pcm_pd_name[dai->id]);
+
+		clk_enable(pcm->pclk);
+		clk_enable(pcm->cclk);
+		audio_clk_gated = 0;
+	}
+	else {
+		if (audio_clk_gated) {
+			pr_debug("already audio clock is gated! \n");
+			return;
+		}
+		clk_disable(pcm->cclk);
+		clk_disable(pcm->pclk);
+
+		s5pv210_pd_disable(pcm_pd_name[dai->id]);
+		audio_clk_gated = 1;
+	}
+}
+
+static void s3c_pcm_do_suspend(struct snd_soc_dai *dai)
+{
+	struct s3c_pcm_info *pcm = to_info(dai);
+
+	if (!audio_clk_gated) {		/* Clk/Pwr is alive? */
+		pcm->suspend_clkctl = readl(pcm->regs + S3C_PCM_CLKCTL);
+		pcm->suspend_ctl = readl(pcm->regs + S3C_PCM_CTL);
+
+		s3c_pcm_set_clk_enabled(dai, 0);	/* Gating Clk/Pwr */
+		pr_debug("Registers stored and suspend.\n");
+	}
+
+	return;
+}
+
+static void s3c_pcm_do_resume(struct snd_soc_dai *dai)
+{
+	struct s3c_pcm_info *pcm = to_info(dai);
+
+	if (audio_clk_gated) {		/* Clk/Pwr is gated? */
+		s3c_pcm_set_clk_enabled(dai, 1);	/* Enable Clk/Pwr */
+
+		writel(pcm->suspend_clkctl, pcm->regs + S3C_PCM_CLKCTL);
+		writel(pcm->suspend_ctl, pcm->regs + S3C_PCM_CTL);
+		pr_debug("Resume and registers restored.\n");
+	}
 }
 
 static void s3c_pcm_snd_txctrl(struct s3c_pcm_info *pcm, int on)
@@ -67,7 +136,7 @@ static void s3c_pcm_snd_txctrl(struct s3c_pcm_info *pcm, int on)
 		ctl |= S3C_PCM_CTL_TXDMA_EN;
 		ctl |= S3C_PCM_CTL_TXFIFO_EN;
 		ctl |= S3C_PCM_CTL_ENABLE;
-		ctl |= (0x20<<S3C_PCM_CTL_TXDIPSTICK_SHIFT);
+		ctl |= (0x2 << S3C_PCM_CTL_TXDIPSTICK_SHIFT);
 		clkctl |= S3C_PCM_CLKCTL_SERCLK_EN;
 	} else {
 		ctl &= ~S3C_PCM_CTL_TXDMA_EN;
@@ -216,8 +285,8 @@ static int s3c_pcm_hw_params(struct snd_pcm_substream *substream,
 
 	spin_unlock_irqrestore(&pcm->lock, flags);
 
-	dev_dbg(pcm->dev, "PCMSOURCE_CLK-%lu SCLK=%ufs \
-				SCLK_DIV=%d SYNC_DIV=%d\n",
+	dev_dbg(pcm->dev, "PCMSOURCE_CLK=%lu SCLK=%ufs "\
+				"SCLK_DIV=%d SYNC_DIV=%d\n",
 				clk_get_rate(clk), pcm->sclk_per_fs,
 				sclk_div, sync_div);
 
@@ -341,12 +410,70 @@ static int s3c_pcm_set_sysclk(struct snd_soc_dai *cpu_dai,
 	return 0;
 }
 
+static int s3c_pcm_startup(struct snd_pcm_substream *substream,
+                                struct snd_soc_dai *dai)
+{
+	s3c_pcm_do_resume(dai);
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		tx_clk_enabled = 1;
+	}
+	else {
+		rx_clk_enabled = 1;
+	}
+
+	return 0;
+}
+
+static void s3c_pcm_shutdown(struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
+{
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		tx_clk_enabled = 0;
+	}
+	else {
+		rx_clk_enabled = 0;
+	}
+
+	if (!tx_clk_enabled && !rx_clk_enabled) {	/* Tx/Rx both off? */
+		s3c_pcm_do_suspend(dai);
+	}
+
+	return;
+}
+
+#ifdef CONFIG_PM
+static int s3c_pcm_suspend(struct snd_soc_dai *dai)
+{
+	if (!audio_clk_gated) {		/* Clk/Pwr is alive? */
+		suspended_by_pm = 1;
+		s3c_pcm_do_suspend(dai);
+	}
+
+	return 0;
+}
+
+static int s3c_pcm_resume(struct snd_soc_dai *dai)
+{
+	if (suspended_by_pm) {
+		suspended_by_pm = 0;
+		s3c_pcm_do_resume(dai);
+	}
+
+	return 0;
+}
+#else
+#define s3c_pcm_suspends NULL
+#define s3c_pcm_resume  NULL
+#endif	/* CONFIG_PM */
+
 static struct snd_soc_dai_ops s3c_pcm_dai_ops = {
 	.set_sysclk	= s3c_pcm_set_sysclk,
 	.set_clkdiv	= s3c_pcm_set_clkdiv,
 	.trigger	= s3c_pcm_trigger,
 	.hw_params	= s3c_pcm_hw_params,
 	.set_fmt	= s3c_pcm_set_fmt,
+	.startup	= s3c_pcm_startup,
+	.shutdown	= s3c_pcm_shutdown,
 };
 
 #define S3C_PCM_RATES    SNDRV_PCM_RATE_8000_96000
@@ -358,6 +485,7 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 	struct snd_soc_dai *dai;
 	struct resource *mem_res, *dmatx_res, *dmarx_res;
 	struct s3c_audio_pdata *pcm_pdata;
+	struct clk *fout_epll, *mout_epll, *mout_audio;
 	int ret;
 
 	/* Check for valid device index */
@@ -365,6 +493,8 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "id %d out of range\n", pdev->id);
 		return -EINVAL;
 	}
+
+	s5pv210_pd_enable(pcm_pd_name[pdev->id]);	/* Enable Power domain */
 
 	pcm_pdata = pdev->dev.platform_data;
 
@@ -405,6 +535,8 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 	s3c_pcm_dai[pdev->id].capture.channels_max = 2;
 	s3c_pcm_dai[pdev->id].capture.rates = S3C_PCM_RATES;
 	s3c_pcm_dai[pdev->id].capture.formats = S3C_PCM_FORMATS;
+	s3c_pcm_dai[pdev->id].suspend = s3c_pcm_suspend;
+	s3c_pcm_dai[pdev->id].resume = s3c_pcm_resume;
 
 	pcm = &s3c_pcm[pdev->id];
 	pcm->dev = &pdev->dev;
@@ -417,6 +549,38 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 	/* Default is 128fs */
 	pcm->sclk_per_fs = 128;
 
+	/* Audio Clock
+	 * fout_epll >> mout_epll >> mout_audio >> sclk_audio(pcm->cclk)
+	 */
+	fout_epll = clk_get(&pdev->dev, "fout_epll");
+	if (IS_ERR(fout_epll)) {
+		dev_err(&pdev->dev, "failed to get fout_epll\n");
+		ret = PTR_ERR(fout_epll);
+		clk_put(fout_epll);
+		goto err1;
+	}
+	clk_enable(fout_epll);
+
+	mout_epll = clk_get(&pdev->dev, "mout_epll");
+	if (IS_ERR(mout_epll)) {
+		dev_err(&pdev->dev, "failed to get mout_epll\n");
+		ret = PTR_ERR(mout_epll);
+		clk_put(mout_epll);
+		goto err1;
+	}
+	clk_enable(mout_epll);
+	clk_set_parent(mout_epll, fout_epll);
+
+	mout_audio = clk_get(&pdev->dev, "mout_audio");
+	if (IS_ERR(mout_audio)) {
+		dev_err(&pdev->dev, "failed to get mout_audio\n");
+		ret = PTR_ERR(mout_audio);
+		clk_put(mout_audio);
+		goto err1;
+	}
+	clk_enable(mout_audio);
+	clk_set_parent(mout_audio, mout_epll);
+
 	pcm->cclk = clk_get(&pdev->dev, "sclk_audio");
 	if (IS_ERR(pcm->cclk)) {
 		dev_err(&pdev->dev, "failed to get audio-bus\n");
@@ -424,6 +588,7 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 		goto err1;
 	}
 	clk_enable(pcm->cclk);
+	clk_set_parent(pcm->cclk, mout_audio);
 
 	/* record our pcm structure for later use in the callbacks */
 	dai->private_data = pcm;
@@ -472,6 +637,12 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 
 	pcm->dma_capture = &s3c_pcm_stereo_in[pdev->id];
 	pcm->dma_playback = &s3c_pcm_stereo_out[pdev->id];
+
+#if 0	/* Leave Power ON-state due to open new pcm
+	   (preallocating dma buffer & codec initializing.) */
+	pr_debug("%s: Completed... Now disable clock & power...\n", __FUNCTION__);
+	s3c_pcm_set_clk_enabled(dai, 0);
+#endif
 
 	return 0;
 

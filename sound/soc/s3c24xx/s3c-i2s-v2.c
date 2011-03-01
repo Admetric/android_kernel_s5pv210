@@ -336,21 +336,41 @@ static int s3c2412_i2s_set_fmt(struct snd_soc_dai *cpu_dai,
 	return 0;
 }
 
-static int s3c2412_i2s_hw_params(struct snd_pcm_substream *substream,
+int s3c2412_i2s_hw_params(struct snd_pcm_substream *substream,
 				 struct snd_pcm_hw_params *params,
 				 struct snd_soc_dai *socdai)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai_link *dai = rtd->dai;
 	struct s3c_i2sv2_info *i2s = to_info(dai->cpu_dai);
+	u32 dma_tsfr_size = 0;
 	u32 iismod;
 
 	pr_debug("Entered %s\n", __func__);
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+	/* TODO */
+	switch (params_channels(params)) {
+		case 1:
+			dma_tsfr_size = 2;
+			break;
+		case 2:
+			dma_tsfr_size = 4;
+			break;
+		case 4:
+			break;
+		case 6:
+			break;
+		default:
+			break;
+	}
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		i2s->dma_playback->dma_size = dma_tsfr_size;
 		dai->cpu_dai->dma_data = i2s->dma_playback;
-	else
+	} else {
+		i2s->dma_capture->dma_size = dma_tsfr_size;
 		dai->cpu_dai->dma_data = i2s->dma_capture;
+	}
 
 	/* Working copies of register */
 	iismod = readl(i2s->regs + S3C2412_IISMOD);
@@ -393,8 +413,9 @@ static int s3c2412_i2s_hw_params(struct snd_pcm_substream *substream,
 	pr_debug("%s: w: IISMOD: %x\n", __func__, iismod);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(s3c2412_i2s_hw_params);
 
-static int s3c2412_i2s_trigger(struct snd_pcm_substream *substream, int cmd,
+int s3c2412_i2s_trigger(struct snd_pcm_substream *substream, int cmd,
 			       struct snd_soc_dai *dai)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -445,6 +466,7 @@ static int s3c2412_i2s_trigger(struct snd_pcm_substream *substream, int cmd,
 exit_err:
 	return ret;
 }
+EXPORT_SYMBOL_GPL(s3c2412_i2s_trigger);
 
 /*
  * Set S3C2412 Clock dividers

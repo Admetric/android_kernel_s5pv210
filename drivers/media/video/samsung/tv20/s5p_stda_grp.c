@@ -17,18 +17,14 @@
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
 #include <linux/uaccess.h>
-#include <plat/media.h>
 
 #include "s5p_tv.h"
 
-#ifdef CONFIG_TVOUT_DEBUG
+#ifdef COFIG_TVOUT_DBG
 #define S5P_GRP_DEBUG 1
-#else
-#warning "TV20 not in Debug mode"
 #endif
 
 #ifdef S5P_GRP_DEBUG
-#define	HERE	printk(KERN_DEBUG "\t[TV20] %s %s() + %d\n", __FILE__, __func__, __LINE__)
 #define GRPPRINTK(fmt, args...)	\
 	printk(KERN_INFO "\t[GRP] %s: " fmt, __func__ , ## args)
 #else
@@ -393,11 +389,9 @@ int s5ptvfb_unmap_video_memory(struct fb_info *fb)
 	struct s5ptvfb_window *win = fb->par;
 
 	if (fix->smem_start) {
-#if 0
 		dma_free_writecombine(s5ptv_status.dev_fb, fix->smem_len,
 			fb->screen_base, fix->smem_start);
 		fix->smem_start = 0;
-#endif
 		fix->smem_len = 0;
 		dev_info(s5ptv_status.dev_fb,
 			"[fb%d] video memory released\n", win->id);
@@ -423,14 +417,10 @@ int s5ptvfb_map_video_memory(struct fb_info *fb)
 
 	if (win->path == DATA_PATH_FIFO)
 		return 0;
-#if 1
-	fb->fix.smem_start = s3c_get_media_memory_bank(S3C_MDEV_TV, 1);
-	fb->screen_base = phys_to_virt(fb->fix.smem_start);
-#else
+
 	fb->screen_base = dma_alloc_writecombine(s5ptv_status.dev_fb,
 				PAGE_ALIGN(fix->smem_len),
 				(unsigned int *) &fix->smem_start, GFP_KERNEL);
-#endif
 	if (!fb->screen_base)
 		return -ENOMEM;
 	else
@@ -615,10 +605,8 @@ int s5ptvfb_set_par(struct fb_info *fb)
 		GRPPRINTK(" The frame buffer is allocated here\n");
 		s5ptvfb_map_video_memory(fb);
 #else
-//		printk(KERN_ERR
-//		"[Warning] The frame buffer should be allocated by ioctl\n");
-		fb->fix.smem_start = s3c_get_media_memory_bank(S3C_MDEV_TV, 1);
-		printk(KERN_ERR "[Warning] The frame buffer should be allocated by ioctl, smem_start = %lx\n", fb->fix.smem_start);
+		printk(KERN_ERR
+		"[Warning] The frame buffer should be allocated by ioctl\n");
 #endif
 	}
 
@@ -751,6 +739,37 @@ static int s5ptvfb_ioctl(struct fb_info *fb, unsigned int cmd,
 	} p;
 
 	switch (cmd) {
+
+	case FBIO_ALLOC:
+		win->path = (enum s5ptvfb_data_path_t) argp;
+		break;
+
+	case FBIOGET_FSCREENINFO:
+		ret = memcpy(argp, &fb->fix, sizeof(fb->fix)) ? 0 : -EFAULT;
+		break;
+
+	case FBIOGET_VSCREENINFO:
+		ret = memcpy(argp, &fb->var, sizeof(fb->var)) ? 0 : -EFAULT;
+		break;
+
+	case FBIOPUT_VSCREENINFO:
+		ret = s5ptvfb_check_var((struct fb_var_screeninfo *) argp, fb);
+		if (ret) {
+			dev_err(s5ptv_status.dev_fb, "invalid vscreeninfo\n");
+			break;
+		}
+
+		ret = memcpy(&fb->var, (struct fb_var_screeninfo *) argp,
+				sizeof(fb->var)) ? 0 : -EFAULT;
+		if (ret) {
+			dev_err(s5ptv_status.dev_fb,
+				"failed to put new vscreeninfo\n");
+			break;
+		}
+
+		ret = s5ptvfb_set_par(fb);
+		break;
+
 	case S5PTVFB_WIN_POSITION:
 		if (copy_from_user(&p.user_window,
 			(struct s5ptvfb_user_window __user *) arg,
@@ -813,6 +832,21 @@ static int s5ptvfb_ioctl(struct fb_info *fb, unsigned int cmd,
 		fb->fix.smem_start = (unsigned long)argp;
 		s5ptvfb_set_buffer_address(&s5ptv_status, win->id);
 		break;
+
+	case S5PTVFB_SET_WIN_ON:
+#ifdef CONFIG_USER_ALLOC_TVOUT
+		s5ptvfb_display_on(&s5ptv_status);
+		s5ptvfb_enable_window(0);
+#endif
+		break;
+
+	case S5PTVFB_SET_WIN_OFF:
+#ifdef CONFIG_USER_ALLOC_TVOUT
+		s5ptvfb_display_off(&s5ptv_status);
+		s5ptvfb_disable_window(0);
+#endif
+		break;
+
 	}
 
 	return 0;

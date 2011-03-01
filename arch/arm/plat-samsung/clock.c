@@ -69,7 +69,7 @@ static int clk_null_enable(struct clk *clk, int enable)
 
 struct clk *clk_get(struct device *dev, const char *id)
 {
-	struct clk *p, *last = NULL;
+	struct clk *p;
 	struct clk *clk = ERR_PTR(-ENOENT);
 	int idno;
 
@@ -81,20 +81,12 @@ struct clk *clk_get(struct device *dev, const char *id)
 	spin_lock(&clocks_lock);
 
 	list_for_each_entry(p, &clocks, list) {
-		if (p == NULL || p->name == NULL) {
-			printk("\t\tNICKMIT: %s, id = %s, idno = %d\n", __func__, id, idno);
-			printk(KERN_ERR "\t\tNICKMIT: %s: BAD clock, p = %p, p->name = %p, last was %s\n", 
-					__func__, p, p == NULL ? "NULL":p->name, last->name);
-			continue;
-		}
-
 		if (p->id == idno &&
 		    strcmp(id, p->name) == 0 &&
 		    try_module_get(p->owner)) {
 			clk = p;
 			break;
 		}
-		last = p;
 	}
 
 	/* check for the case where a device was supplied, but the

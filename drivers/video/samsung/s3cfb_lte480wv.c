@@ -15,7 +15,7 @@
 static struct s3cfb_lcd lte480wv = {
 	.width	= 800,
 	.height	= 480,
-	.bpp	= 24,
+	.bpp	= 32,
 	.freq	= 60,
 
 	.timing = {

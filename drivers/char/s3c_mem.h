@@ -30,6 +30,11 @@
 #define S3C_MEM_CACHEABLE_ALLOC		_IOWR(MEM_IOCTL_MAGIC, 316, struct s3c_mem_alloc)
 #define S3C_MEM_CACHEABLE_SHARE_ALLOC	_IOWR(MEM_IOCTL_MAGIC, 317, struct s3c_mem_alloc)
 
+// sw5771.park (1007011) : from g2d driver...
+#define S3C_MEM_CACHE_FLUSH		_IOWR(MEM_IOCTL_MAGIC, 318, struct s3c_mem_alloc)
+#define S3C_MEM_CACHE_INVAL		_IOWR(MEM_IOCTL_MAGIC, 319, struct s3c_mem_alloc)
+#define S3C_MEM_CACHE_CLEAN		_IOWR(MEM_IOCTL_MAGIC, 320, struct s3c_mem_alloc)
+
 #define MEM_ALLOC			1
 #define MEM_ALLOC_SHARE			2
 #define MEM_ALLOC_CACHEABLE		3
@@ -46,6 +51,8 @@ static DEFINE_MUTEX(mem_share_free_lock);
 
 static DEFINE_MUTEX(mem_cacheable_alloc_lock);
 static DEFINE_MUTEX(mem_cacheable_share_alloc_lock);
+
+static DEFINE_MUTEX(mem_dma_cache_lock);
 
 struct s3c_mem_alloc {
 	int		size;

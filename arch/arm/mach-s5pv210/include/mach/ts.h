@@ -11,6 +11,10 @@
 #ifndef __ASM_ARCH_TS_H
 #define __ASM_ARCH_TS_H __FILE__
 
+#ifdef CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#include <linux/earlysuspend.h>
+#endif
 
 enum s3c_adc_type {
 	ADC_TYPE_0,
@@ -35,6 +39,10 @@ struct s3c_ts_info {
 	char 			phys[32];
 	int			resol_bit;
 	enum s3c_adc_type	s3c_adc_con;
+
+#ifdef CONFIG_HAS_WAKELOCK
+        struct early_suspend early_suspend;
+#endif
 };
 
 extern void __init s3c_ts_set_platdata(struct s3c_ts_mach_info *pd);

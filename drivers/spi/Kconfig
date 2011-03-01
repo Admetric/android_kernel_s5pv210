@@ -233,6 +233,66 @@ config SPI_STMP3XXX
 	depends on ARCH_STMP3XXX && SPI_MASTER
 	help
 	  SPI driver for Freescale STMP37xx/378x SoC SSP interface
+config SPI_S5PV210
+        tristate "S5P SPI Driver"
+        depends on SPI && CPU_S5PV210
+        select SPI_CNTRLR_0
+        help
+          Say Y here to include support for SPI controller in the
+          Samsung S5PC110/S5PV210 based System-on-Chip devices.
+
+config SPI_CNTRLR_0
+        bool
+        depends on SPI_S5PV210
+        default y
+
+config SPI_CNTRLR_1
+        bool "SPI-1 Support"
+        depends on SPI_S5PV210 && SPI_CNTRLR_0
+        default n
+        help
+          Say N(recommended). This will initialize two controllers.
+
+config SPI_CNTRLR_2
+        bool "SPI-2 Support"
+        depends on SPI_S5PV210 && SPI_CNTRLR_1
+        default n
+        help
+          Say N(recommended). This will initialize three SPI controllers.
+
+choice
+        prompt "SPI Source Clock"
+        depends on SPI_S5PV210
+
+config SPICLK_PCLK
+        bool "PCLK"
+        help
+          Say Y if you want to source SPI clock from PCLK.
+
+config SPICLK_EXT
+        bool "SPI_EXT_CLK"
+        help
+          Say Y if you want to source SPI clock from other Sources.
+
+endchoice
+
+choice
+        prompt "Select EPLL Source"
+        depends on (SPICLK_EXT)
+
+config SPICLK_EXT_MOUT_EPLL
+        bool "MOUTepll"
+
+config SPICLK_EXT_MOUT_MPLL
+        bool "MOUTmpll"
+	help
+	  MPLL clock is 667MHz. Select this only when you are dividing the 
+	  clock appropriately.
+
+config SPICLK_EXT_MOUT_VPLL
+        bool "MOUTvpll"
+
+endchoice
 
 config SPI_TXX9
 	tristate "Toshiba TXx9 SPI controller"

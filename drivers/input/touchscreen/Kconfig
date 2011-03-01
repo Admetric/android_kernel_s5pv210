@@ -116,14 +116,6 @@ config TOUCHSCREEN_S3C
           To compile this driver as a module, choose M here: the
           module will be called s3c_ts.
 
-config TOUCHSCREEN_S3C_PORT1
-	bool "Use Touchscreen  port 1"
-	depends on TOUCHSCREEN_S3C && CPU_S5PV210
-
-config TOUCHSCREEN_S3C_DEBUG
-        bool "S3C touchscreen driver debug"
-	depends on TOUCHSCREEN_S3C
-
 config TOUCHSCREEN_NEW
         bool "new flip touch"
         depends on TOUCHSCREEN_S3C
@@ -302,6 +294,12 @@ config TOUCHSCREEN_MIGOR
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called migor_ts.
+
+config TOUCHSCREEN_SYNAPTICS_I2C_RMI
+	tristate "Synaptics i2c touchscreen"
+	depends on I2C
+	help
+	  This enables support for Synaptics RMI over I2C based touchscreens.
 
 config TOUCHSCREEN_TOUCHRIGHT
 	tristate "Touchright serial touchscreen"

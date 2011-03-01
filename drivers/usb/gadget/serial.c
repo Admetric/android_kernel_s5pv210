@@ -15,7 +15,7 @@
 #include <linux/device.h>
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
-
+#include <linux/delay.h>
 #include "u_serial.h"
 #include "gadget_chips.h"
 

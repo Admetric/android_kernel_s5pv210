@@ -23,6 +23,8 @@
 #include "s3c64xx-i2s.h"
 
 #include <linux/io.h>
+#include <mach/map.h>
+#include <mach/regs-clock.h>
 
 #define I2S_NUM 0
 
@@ -39,19 +41,33 @@ static int smdk64xx_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
 	unsigned int rclk, psr=1;
 	int bfs, rfs, ret;
+	unsigned long epll_out_rate;
+	unsigned int  value = 0;
+	unsigned int bit_per_sample, sample_rate;
 
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_U24:
 	case SNDRV_PCM_FORMAT_S24:
 		bfs = 48;
+		bit_per_sample = 24;
 		break;
 	case SNDRV_PCM_FORMAT_U16_LE:
 	case SNDRV_PCM_FORMAT_S16_LE:
 		bfs = 32;
+		bit_per_sample = 16;
 		break;
 	default:
 		return -EINVAL;
 	}
+
+
+	/* For resample */
+	value = params_rate(params);
+	if(value != 44100) {
+		printk("%s: sample rate %d --> 44100\n", __func__, value);
+		value = 44100;
+	}
+	sample_rate = value;
 
 	/* The Fvco for WM8580 PLLs must fall within [90,100]MHz.
 	 * This criterion can't be met if we request PLL output
@@ -60,7 +76,7 @@ static int smdk64xx_hw_params(struct snd_pcm_substream *substream,
 	 * results in (params_rate(params) * rfs), and itself, acceptable
 	 * to both - the CODEC and the CPU.
 	 */
-	switch (params_rate(params)) {
+	switch (value) {
 	case 16000:
 	case 22050:
 	case 24000:
@@ -89,7 +105,7 @@ static int smdk64xx_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	rclk = params_rate(params) * rfs;
+	rclk = value * rfs;
 
 	switch (rclk) {
 	case 4096000:
@@ -121,7 +137,14 @@ static int smdk64xx_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	set_epll_rate(rclk * psr);
+	printk("IIS Audio: %uBits Stereo %uHz\n", bit_per_sample, sample_rate);
+
+	epll_out_rate = rclk * psr;
+
+	/* Set EPLL clock rate */
+	ret = set_epll_rate(epll_out_rate);
+	if (ret < 0)
+		return ret;
 
 	ret = snd_soc_dai_set_sysclk(cpu_dai, S3C64XX_CLKSRC_CDCLK,
 					0, SND_SOC_CLOCK_OUT);
@@ -306,12 +329,12 @@ static struct snd_soc_dai_link smdk64xx_dai[] = {
 	.init = smdk64xx_wm8580_init_paiftx,
 	.ops = &smdk64xx_ops,
 },
-{
+/*{
 	.name = "WM8580 PAIF RX",
 	.stream_name = "Playback-Sec",
 	.cpu_dai = &i2s_sec_fifo_dai,
 	.codec_dai = &wm8580_dai[WM8580_DAI_PAIFRX],
-},
+},*/
 };
 
 static struct snd_soc_card smdk64xx = {
@@ -355,6 +378,7 @@ static int __init smdk64xx_audio_init(void)
 {
 	int ret;
 	u32 val;
+	u32 reg;
 
 #include <mach/map.h>
 #define S3C_VA_AUDSS	S3C_ADDR(0x01600000)	/* Audio SubSystem */
@@ -370,6 +394,27 @@ static int __init smdk64xx_audio_init(void)
 	val = readl(S5P_CLKGATE_AUDSS);
 	val |= (0x7f<<0);
 	writel(val, S5P_CLKGATE_AUDSS);
+
+#ifdef CONFIG_S5P_LPAUDIO
+	/* yman.seo CLKOUT is prior to CLK_OUT of SYSCON. XXTI & XUSBXTI work in sleep mode */
+	reg = __raw_readl(S5P_OTHERS);
+	reg &= ~(0x0003 << 8);
+	reg |= 0x0003 << 8;	/* XUSBXTI */
+	__raw_writel(reg, S5P_OTHERS);
+#else
+	/* yman.seo Set XCLK_OUT as 24MHz (XUSBXTI -> 24MHz) */
+	reg = __raw_readl(S5P_CLK_OUT);
+	reg &= ~S5P_CLKOUT_CLKSEL_MASK;
+	reg |= S5P_CLKOUT_CLKSEL_XUSBXTI;
+	reg &= ~S5P_CLKOUT_DIV_MASK;
+	reg |= 0x0001 << S5P_CLKOUT_DIV_SHIFT;	/* DIVVAL = 1, Ratio = 2 = DIVVAL + 1 */
+	__raw_writel(reg, S5P_CLK_OUT);
+
+	reg = __raw_readl(S5P_OTHERS);
+	reg &= ~(0x0003 << 8);
+	reg |= 0x0000 << 8;	/* Clock from SYSCON */
+	__raw_writel(reg, S5P_OTHERS);
+#endif
 
 	smdk64xx_snd_device = platform_device_alloc("soc-audio", 0);
 	if (!smdk64xx_snd_device)

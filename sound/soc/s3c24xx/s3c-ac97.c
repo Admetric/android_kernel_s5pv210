@@ -30,6 +30,9 @@
 #define AC_CMD_ADDR(x) (x << 16)
 #define AC_CMD_DATA(x) (x & 0xffff)
 
+#include <mach/regs-clock.h>	/* 100630 AC97 porting */
+#include <plat/clock.h>	/* 100701 AC97 clock gating */
+
 struct s3c_ac97_info {
 	unsigned           state;
 	struct clk         *ac97_clk;
@@ -230,6 +233,30 @@ static int s3c_ac97_hw_params(struct snd_pcm_substream *substream,
 	else
 		cpu_dai->dma_data = &s3c_ac97_pcm_in;
 
+
+//100701 AC97 porting
+//add external audio codec(WM9713) preparation code (from 2.6.29 s3c_ac97_prepare())
+
+        s3c_ac97_write(0,0x26,0x0);
+        s3c_ac97_write(0, 0x0c, 0x0808);
+        s3c_ac97_write(0,0x3c, 0xf803);
+        s3c_ac97_write(0,0x3e,0xb990);
+
+        if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+                s3c_ac97_write(0, 0x02, 0x8080);
+                s3c_ac97_write(0, 0x04, 0x0606);
+                s3c_ac97_write(0,0x1c, 0x00aa);
+        } else {
+                s3c_ac97_write(0, 0x12, 0x0f0f);	/* Record Gain */
+#ifdef CONFIG_SOUND_WM9713_INPUT_STREAM_MIC	/* Input Stream is MIC-IN */
+                s3c_ac97_write(0,0x5c,0x2);
+                s3c_ac97_write(0,0x10,0x68);
+                s3c_ac97_write(0,0x14,0xfe00);
+#else						/* Input Stream is LINE-IN : SMDKC110 default */
+                s3c_ac97_write(0, 0x14, 0xd612);
+#endif
+        }
+
 	return 0;
 }
 
@@ -316,9 +343,26 @@ static int s3c_ac97_mic_trigger(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+/* 100701 AC97 clock gating */
+static int s3c_ac97_startup(struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
+{
+	clk_enable(s3c_ac97.ac97_clk);
+	/* printk("\n\t(@%s) IP3 reg. = 0x%x - after clk_enable()\n", __FUNCTION__, readl(S5P_CLKGATE_IP3)); */
+
+	return 0;
+}
+
+static void s3c_ac97_shutdown(struct snd_pcm_substream *substream, struct snd_soc_dai *dai)
+{
+	clk_disable(s3c_ac97.ac97_clk);
+	/* printk("\n\t(@%s) IP3 reg. = 0x%x - after clk_disable()", __FUNCTION__, readl(S5P_CLKGATE_IP3)); */
+}
+
 static struct snd_soc_dai_ops s3c_ac97_dai_ops = {
 	.hw_params	= s3c_ac97_hw_params,
 	.trigger	= s3c_ac97_trigger,
+	.startup	= s3c_ac97_startup,	/* 100701 AC97 clock gating */
+	.shutdown	= s3c_ac97_shutdown,	/* 100701 AC97 clock gating */
 };
 
 static struct snd_soc_dai_ops s3c_ac97_mic_dai_ops = {
@@ -365,6 +409,8 @@ static __devinit int s3c_ac97_probe(struct platform_device *pdev)
 	struct resource *mem_res, *dmatx_res, *dmarx_res, *dmamic_res, *irq_res;
 	struct s3c_audio_pdata *ac97_pdata;
 	int ret;
+	struct clk *clk_of_ac97;	/* 100701 AC97 clock gating */
+
 
 	ac97_pdata = pdev->dev.platform_data;
 	if (!ac97_pdata || !ac97_pdata->cfg_gpio) {
@@ -433,6 +479,12 @@ static __devinit int s3c_ac97_probe(struct platform_device *pdev)
 		goto err2;
 	}
 	clk_enable(s3c_ac97.ac97_clk);
+	
+	/* 100701 AC97 clock gating */
+	clk_of_ac97 = s3c_ac97.ac97_clk;
+	if(clk_of_ac97->usage == 1)
+		--clk_of_ac97->usage;	/* decrease usage cnt. value instead of clk_disable() func.
+					   at the end of probe() func. */
 
 	if (ac97_pdata->cfg_gpio(pdev)) {
 		dev_err(&pdev->dev, "Unable to configure gpio\n");

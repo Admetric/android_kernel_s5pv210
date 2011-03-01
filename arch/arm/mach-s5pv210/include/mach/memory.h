@@ -23,5 +23,8 @@
 /* Maximum of 256MiB in one bank */
 #define MAX_PHYSMEM_BITS	32
 #define SECTION_SIZE_BITS	28
+#if defined(CONFIG_MACH_SMDKC110)
+#define NODE_MEM_SIZE_BITS   28
+#endif
 
 #endif /* __ASM_ARCH_MEMORY_H */

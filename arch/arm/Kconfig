@@ -655,6 +655,8 @@ config ARCH_S5PV210
 	select GENERIC_GPIO
 	select HAVE_CLK
 	select ARM_L1_CACHE_SHIFT_6
+	select REGULATOR
+	select REGULATOR_MAX8698
 	select ARCH_HAS_CPUFREQ
 	help
 	  Samsung S5PV210/S5PC110 series based systems
@@ -923,6 +925,17 @@ config ARM_ERRATA_460075
 	  ACTLR register. Note that setting specific bits in the ACTLR register
 	  may not be available in non-secure mode.
 
+config ARM_ERRATA_709718
+	bool "ARM errata: Load/store to shared device regions may not complete in program order"
+	depends on CPU_V7
+	help
+	  This option enables the workaround for the 709718 Cortex-A8
+	  (r2p1..r3p1) erratum. If a sequence of loads and stores are done
+	  to a memory region that is marked as shared device, it is possible
+	  for a load to incorrectly bypass a store if the load and store
+	  are done to different addresses. The workaround let the remap registers
+	  remap all shared device transactions to non-shared device.
+
 endmenu
 
 source "arch/arm/common/Kconfig"
@@ -1077,7 +1090,8 @@ source kernel/Kconfig.preempt
 config HZ
 	int
 	default 128 if ARCH_L7200
-	default 200 if ARCH_EBSA110 || ARCH_S3C2410 || ARCH_S5P6440 || ARCH_S5P6442 || ARCH_S5PV210
+	default 200 if ARCH_EBSA110 || ARCH_S3C2410 || ARCH_S5P6440 || ARCH_S5P6442 || (ARCH_S5PV210 && !HRT_RTC)
+	default 256 if ARCH_S5PV210 && HRT_RTC
 	default OMAP_32K_TIMER_HZ if ARCH_OMAP && OMAP_32K_TIMER
 	default AT91_TIMER_HZ if ARCH_AT91
 	default 100

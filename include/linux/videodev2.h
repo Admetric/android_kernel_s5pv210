@@ -1621,6 +1621,7 @@ struct v4l2_dbg_chip_ident {
 #define VIDIOC_S_HW_FREQ_SEEK	 _IOW('V', 82, struct v4l2_hw_freq_seek)
 /* Reminder: when adding new ioctls please add support for them to
    drivers/media/video/v4l2-compat-ioctl32.c as well! */
+#define VIDIOC_S_BASEADDR        _IOR('V', 83, int)
 
 #ifdef __OLD_VIDIOC_
 /* for compatibility, will go away some day */

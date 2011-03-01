@@ -50,7 +50,9 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
-
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
+#endif /* CONFIG_HAS_EARLYSUSPEND */
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <mach/hardware.h>
@@ -59,8 +61,17 @@
 #include <mach/ts.h>
 #include <mach/irqs.h>
 
-// #define CONFIG_TOUCHSCREEN_S3C_DEBUG
-// #undef CONFIG_TOUCHSCREEN_S3C_DEBUG
+#define CONFIG_TOUCHSCREEN_S3C_DEBUG
+#undef CONFIG_TOUCHSCREEN_S3C_DEBUG
+
+#ifdef CONFIG_CPU_S5PV210_EVT1
+#define        X_COOR_MIN      180
+#define        X_COOR_MAX      4000
+#define        X_COOR_FUZZ     32
+#define        Y_COOR_MIN      300
+#define        Y_COOR_MAX      3900
+#define        Y_COOR_FUZZ     32
+#endif /* CONFIG_CPU_S5PV210_EVT1 */
 
 /* For ts->dev.id.version */
 #define S3C_TSVERSION	0x0101
@@ -75,6 +86,10 @@
 
 #define DEBUG_LVL    KERN_DEBUG
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+void ts_early_suspend(struct early_suspend *h);
+void ts_late_resume(struct early_suspend *h);
+#endif /* CONFIG_HAS_EARLYSUSPEND */
 
 /* Touchscreen default configuration */
 struct s3c_ts_mach_info s3c_ts_default_cfg __initdata = {
@@ -99,6 +114,31 @@ static void touch_timer_fire(unsigned long data)
 	unsigned long data0;
 	unsigned long data1;
 	int updown;
+#ifdef CONFIG_ANDROID
+	int x,y;
+#ifndef CONFIG_CPU_S5PV210_EVT1
+
+#ifdef CONFIG_TOUCHSCREEN_NEW
+	int a0,a1,a2,a3,a4,a5,a6;
+
+	a0=11;
+	a1=3004;
+	a2=-9542528;
+	a3=-4300;
+	a4=4;
+	a5=61817184;
+	a6=65536;
+#else /* CONFIG_TOUCHSCREEN_NEW */
+	a0=5171;
+	a1=9;
+	a2=-17497920;
+	a3=-12;
+	a4=-4659;
+	a5=52871808;
+	a6=65536;
+#endif /* CONFIG_TOUCHSCREEN_NEW */
+#endif /* !CONFIG_CPU_S5PV210_EVT1 */
+#endif /* CONFIG_ANDROID */
 
 	data0 = readl(ts_base+S3C_ADCDAT0);
 	data1 = readl(ts_base+S3C_ADCDAT1);
@@ -116,12 +156,47 @@ static void touch_timer_fire(unsigned long data)
 			}
 #endif
 
+#ifdef CONFIG_ANDROID
+#ifndef CONFIG_CPU_S5PV210_EVT1
+			x=(int) ts->xp;
+			y=(int) ts->yp;
+
+			ts->xp=(long) ((a2+(a0*x)+(a1*y))/a6) * 800/480;
+			ts->yp=(long) ((a5+(a3*x)+(a4*y))/a6) * 480/800;
+			//printk("x=%d, y=%d\n",(int) ts->xp,(int) ts->yp);
+
+			if (ts->xp!=ts->xp_old || ts->yp!=ts->yp_old) {
+				input_report_abs(ts->dev, ABS_X, ts->xp);
+				input_report_abs(ts->dev, ABS_Y, ts->yp);
+				input_report_abs(ts->dev, ABS_Z, 0);
+
+				input_report_key(ts->dev, BTN_TOUCH, 1);
+				//          input_report_abs(ts->dev, ABS_PRESSURE, 1);
+				input_sync(ts->dev);
+			}
+			ts->xp_old=ts->xp;
+			ts->yp_old=ts->yp;
+#else /* !CONFIG_CPU_S5PV210_EVT1 */
+			x=(int) ts->xp/ts->count;
+			y=(int) ts->yp/ts->count;
+#ifdef CONFIG_FB_S3C_LTE480WV
+			y = 4000 - y;
+#endif /* CONFIG_FB_S3C_LTE480WV */
+			//printk("Cordinates x=%d, y=%d\n",(int) x,(int) y);
+			input_report_abs(ts->dev, ABS_X, x);
+			input_report_abs(ts->dev, ABS_Y, y);
+			input_report_abs(ts->dev, ABS_Z, 0);
+			input_report_key(ts->dev, BTN_TOUCH, 1);
+			input_sync(ts->dev);
+#endif /* !CONFIG_CPU_S5PV210_EVT1 */
+#else /* CONFIG_ANDROID */
 			input_report_abs(ts->dev, ABS_X, ts->xp);
 			input_report_abs(ts->dev, ABS_Y, ts->yp);
 
 			input_report_key(ts->dev, BTN_TOUCH, 1);
 			input_report_abs(ts->dev, ABS_PRESSURE, 1);
 			input_sync(ts->dev);
+#endif /* CONFIG_ANDROID */
 		}
 
 		ts->xp = 0;
@@ -131,11 +206,21 @@ static void touch_timer_fire(unsigned long data)
 		writel(S3C_ADCTSC_PULL_UP_DISABLE | AUTOPST, ts_base+S3C_ADCTSC);
 		writel(readl(ts_base+S3C_ADCCON) | S3C_ADCCON_ENABLE_START, ts_base+S3C_ADCCON);
 	} else {
-
 		ts->count = 0;
-
+#ifdef CONFIG_ANDROID
+#ifdef CONFIG_CPU_S5PV210_EVT1
+		input_report_abs(ts->dev, ABS_X, ts->xp);
+		input_report_abs(ts->dev, ABS_Y, ts->yp);
+#else /* CONFIG_CPU_S5PV210_EVT1 */
+		input_report_abs(ts->dev, ABS_X, ts->xp_old);
+		input_report_abs(ts->dev, ABS_Y, ts->yp_old);
+#endif /* CONFIG_CPU_S5PV210_EVT1 */
+		input_report_abs(ts->dev, ABS_Z, 0);
+#endif /* CONFIG_ANDROID */
 		input_report_key(ts->dev, BTN_TOUCH, 0);
+#ifndef CONFIG_ANDROID
 		input_report_abs(ts->dev, ABS_PRESSURE, 0);
+#endif /* !CONFIG_ANDROID */
 		input_sync(ts->dev);
 
 		writel(WAIT4INT(0), ts_base+S3C_ADCTSC);
@@ -157,10 +242,7 @@ static irqreturn_t stylus_updown(int irqno, void *param)
 	updown = (!(data0 & S3C_ADCDAT0_UPDOWN)) && (!(data1 & S3C_ADCDAT1_UPDOWN));
 
 #ifdef CONFIG_TOUCHSCREEN_S3C_DEBUG
-//       printk(KERN_INFO "\t\t%s:   %c\n", __func__, updown ? 'D' : 'U');
-       printk("\t\t%s:   %c\n", __func__, updown ? 'D' : 'U');
-//#else
-//#warning
+       printk(KERN_INFO "   %c\n",	updown ? 'D' : 'U');
 #endif
 
 	/* TODO we should never get an interrupt with updown set while
@@ -190,18 +272,22 @@ static irqreturn_t stylus_action(int irqno, void *param)
 #if defined(CONFIG_TOUCHSCREEN_NEW)
 		ts->yp += S3C_ADCDAT0_XPDATA_MASK_12BIT - (data0 & S3C_ADCDAT0_XPDATA_MASK_12BIT);
 		ts->xp += S3C_ADCDAT1_YPDATA_MASK_12BIT - (data1 & S3C_ADCDAT1_YPDATA_MASK_12BIT);
-#else
+#else /* CONFIG_TOUCHSCREEN_NEW */
+#ifndef CONFIG_CPU_S5PV210_EVT1
 		ts->xp += data0 & S3C_ADCDAT0_XPDATA_MASK_12BIT;
+#else /* !CONFIG_CPU_S5PV210_EVT1 */
+		ts->xp += S3C_ADCDAT0_XPDATA_MASK_12BIT - (data0 & S3C_ADCDAT0_XPDATA_MASK_12BIT);
+#endif /* !CONFIG_CPU_S5PV210_EVT1 */
 		ts->yp += data1 & S3C_ADCDAT1_YPDATA_MASK_12BIT;
-#endif
+#endif /* CONFIG_TOUCHSCREEN_NEW */
 	} else {
 #if defined(CONFIG_TOUCHSCREEN_NEW)
 		ts->yp += S3C_ADCDAT0_XPDATA_MASK - (data0 & S3C_ADCDAT0_XPDATA_MASK);
 		ts->xp += S3C_ADCDAT1_YPDATA_MASK - (data1 & S3C_ADCDAT1_YPDATA_MASK);
-#else
+#else /* CONFIG_TOUCHSCREEN_NEW */
 		ts->xp += data0 & S3C_ADCDAT0_XPDATA_MASK;
 		ts->yp += data1 & S3C_ADCDAT1_YPDATA_MASK;
-#endif
+#endif /* CONFIG_TOUCHSCREEN_NEW */
 	}
 
 	ts->count++;
@@ -258,21 +344,12 @@ static int __init s3c_ts_probe(struct platform_device *pdev)
 		goto err_req;
 	}
 
-#ifdef	CONFIG_TOUCHSCREEN_S3C_PORT1
-	size += SZ_4K;
-#endif
-
 	ts_base = ioremap(res->start, size);
 	if (ts_base == NULL) {
 		dev_err(dev, "failed to ioremap() region\n");
 		ret = -EINVAL;
 		goto err_map;
 	}
-
-#ifdef	CONFIG_TOUCHSCREEN_S3C_PORT1
-	writel(1<<17, ts_base+S3C_ADCCON);
-	ts_base += SZ_4K;
-#endif
 
 	ts_clock = clk_get(&pdev->dev, "adc");
 	if (IS_ERR(ts_clock)) {
@@ -285,19 +362,10 @@ static int __init s3c_ts_probe(struct platform_device *pdev)
 
 	s3c_ts_cfg = s3c_ts_get_platdata(&pdev->dev);
 	if ((s3c_ts_cfg->presc&0xff) > 0)
-#ifdef	CONFIG_TOUCHSCREEN_S3C_PORT1
-		writel(1<<17 | S3C_ADCCON_PRSCEN | S3C_ADCCON_PRSCVL(s3c_ts_cfg->presc&0xFF),\
-				ts_base+S3C_ADCCON);
-#else
 		writel(S3C_ADCCON_PRSCEN | S3C_ADCCON_PRSCVL(s3c_ts_cfg->presc&0xFF),\
 				ts_base+S3C_ADCCON);
-#endif
 	else
-#ifdef	CONFIG_TOUCHSCREEN_S3C_PORT1
-		writel(1<<17, ts_base+S3C_ADCCON);
-#else
 		writel(0, ts_base+S3C_ADCCON);
-#endif
 
 	/* Initialise registers */
 	if ((s3c_ts_cfg->delay&0xffff) > 0)
@@ -334,9 +402,40 @@ static int __init s3c_ts_probe(struct platform_device *pdev)
 	ts->dev->evbit[0] = ts->dev->evbit[0] = BIT_MASK(EV_SYN) | BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
 	ts->dev->keybit[BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH);
 
-	if (s3c_ts_cfg->resol_bit == 12) {
+	if (s3c_ts_cfg->resol_bit==12) {
+#ifdef CONFIG_ANDROID
+#ifndef CONFIG_CPU_S5PV210_EVT1
+		input_set_abs_params(ts->dev, ABS_X, 0, 800, 0, 0);
+		input_set_abs_params(ts->dev, ABS_Y, 0, 480, 0, 0);
+		//  input_set_abs_params(ts->dev, ABS_Z, 0, 0, 0, 0);
+
+		set_bit(0,ts->dev->evbit);
+		set_bit(1,ts->dev->evbit);
+		set_bit(2,ts->dev->evbit);
+		set_bit(3,ts->dev->evbit);
+		set_bit(5,ts->dev->evbit);
+
+		set_bit(0,ts->dev->relbit);
+		set_bit(1,ts->dev->relbit);
+
+		set_bit(0,ts->dev->absbit);
+		set_bit(1,ts->dev->absbit);
+		set_bit(2,ts->dev->absbit);
+
+		set_bit(0,ts->dev->swbit);
+
+		for (err=0; err < 512; err++)
+			set_bit(err,ts->dev->keybit);
+
+		input_event(ts->dev,5,0,1);
+#else /* !CONFIG_CPU_S5PV210_EVT1 */
+		input_set_abs_params(ts->dev, ABS_X, X_COOR_MIN, X_COOR_MAX, X_COOR_FUZZ, 0);
+		input_set_abs_params(ts->dev, ABS_Y, Y_COOR_MIN, Y_COOR_MAX, Y_COOR_FUZZ, 0);
+#endif /* !CONFIG_CPU_S5PV210_EVT1 */
+#else /* CONFIG_ANDROID */
 		input_set_abs_params(ts->dev, ABS_X, 0, 0xFFF, 0, 0);
 		input_set_abs_params(ts->dev, ABS_Y, 0, 0xFFF, 0, 0);
+#endif /* CONFIG_ANDROID */
 	} else {
 		input_set_abs_params(ts->dev, ABS_X, 0, 0x3FF, 0, 0);
 		input_set_abs_params(ts->dev, ABS_Y, 0, 0x3FF, 0, 0);
@@ -356,6 +455,13 @@ static int __init s3c_ts_probe(struct platform_device *pdev)
 	ts->shift = s3c_ts_cfg->oversampling_shift;
 	ts->resol_bit = s3c_ts_cfg->resol_bit;
 	ts->s3c_adc_con = s3c_ts_cfg->s3c_adc_con;
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	ts->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
+	ts->early_suspend.suspend = ts_early_suspend;
+	ts->early_suspend.resume =ts_late_resume;
+	register_early_suspend(&ts->early_suspend);
+#endif /* CONFIG_HAS_EARLYSUSPEND */
 
 	/* For IRQ_PENDUP */
 	ts_irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
@@ -424,26 +530,23 @@ err_req:
 
 static int s3c_ts_remove(struct platform_device *dev)
 {
-	struct resource *res;
 	printk(KERN_INFO "s3c_ts_remove() of TS called !\n");
 
-	res = platform_get_resource(dev, IORESOURCE_IRQ, 0);
-	if (res) {
-		disable_irq(res->start);
-		free_irq(res->start, ts->dev);
-	}
+	disable_irq(IRQ_ADC);
+	disable_irq(IRQ_PENDN);
 
-	res = platform_get_resource(dev, IORESOURCE_IRQ, 1);
-	if (res) {
-		disable_irq(res->start);
-		free_irq(res->start, ts->dev);
-	}
+	free_irq(IRQ_PENDN, ts->dev);
+	free_irq(IRQ_ADC, ts->dev);
 
 	if (ts_clock) {
 		clk_disable(ts_clock);
 		clk_put(ts_clock);
 		ts_clock = NULL;
 	}
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+     unregister_early_suspend(&ts->early_suspend);
+#endif /* CONFIG_HAS_EARLYSUSPEND */
 
 	input_unregister_device(ts->dev);
 	iounmap(ts_base);
@@ -479,12 +582,29 @@ static int s3c_ts_resume(struct platform_device *pdev)
 
 	enable_irq(IRQ_ADC);
 	enable_irq(IRQ_PENDN);
+
 	return 0;
 }
 #else
 #define s3c_ts_suspend NULL
 #define s3c_ts_resume  NULL
 #endif
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+void ts_early_suspend(struct early_suspend *h)
+{
+	struct s3c_ts_info *ts;
+	ts = container_of(h, struct s3c_ts_info, early_suspend);
+	s3c_ts_suspend(NULL, PMSG_SUSPEND); // platform_device is now used
+}
+
+void ts_late_resume(struct early_suspend *h)
+{
+	struct s3c_ts_info *ts;
+	ts = container_of(h, struct s3c_ts_info, early_suspend);
+	s3c_ts_resume(NULL); // platform_device is now used
+}
+#endif /* CONFIG_HAS_EARLYSUSPEND */
 
 static struct platform_driver s3c_ts_driver = {
        .probe          = s3c_ts_probe,

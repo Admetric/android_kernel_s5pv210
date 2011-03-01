@@ -154,6 +154,7 @@ static void xrun(struct snd_pcm_substream *substream)
 	if (runtime->tstamp_mode == SNDRV_PCM_TSTAMP_ENABLE)
 		snd_pcm_gettime(runtime, (struct timespec *)&runtime->status->tstamp);
 	snd_pcm_stop(substream, SNDRV_PCM_STATE_XRUN);
+	printk("%s: occurred buffer xrun[%d]\n", __func__, substream->stream);
 	if (xrun_debug(substream, 1)) {
 		char name[16];
 		pcm_debug_name(substream, name, sizeof(name));
@@ -1118,10 +1119,12 @@ int snd_pcm_hw_constraint_minmax(struct snd_pcm_runtime *runtime, snd_pcm_hw_par
 {
 	struct snd_pcm_hw_constraints *constrs = &runtime->hw_constraints;
 	struct snd_interval t;
+
 	t.min = min;
 	t.max = max;
 	t.openmin = t.openmax = 0;
 	t.integer = 0;
+	
 	return snd_interval_refine(constrs_interval(constrs, var), &t);
 }
 

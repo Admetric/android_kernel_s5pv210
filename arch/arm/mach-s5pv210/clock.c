@@ -315,9 +315,34 @@ static struct clk clk_pcmcdclk1 = {
 	.name		= "pcmcdclk",
 	.id		= 1,
 };
+
+/* PCMCDCLK2 */
+static struct clk clk_pcmcdclk2 = {
+	.name		= "pcmcdclk",
+	.id		= 2,
+};
+
 /* I2SCDCLK0 */
 static struct clk clk_i2scdclk0 = {
 	.name		= "i2scdclk",
+	.id		= 0,
+};
+
+/* I2SCDCLK1 */
+static struct clk clk_i2scdclk1 = {
+	.name		= "i2scdclk",
+	.id		= 1,
+};
+
+/* I2SCDCLK2 */
+static struct clk clk_i2scdclk2 = {
+	.name		= "i2scdclk",
+	.id		= 2,
+};
+
+/* SPDIF EXT CLOCK */
+static struct clk clk_spdifextclk = {
+	.name		= "spdifextclk",
 	.id		= 0,
 };
 
@@ -404,6 +429,24 @@ static struct clksrc_sources clkset_group1 = {
 	.nr_sources	= ARRAY_SIZE(clkset_group1_list),
 };
 
+/* Clock sources for Audio 0 SCLK */
+static struct clk *clkset_mout_audio0_list[] = {
+	[0] = &clk_ext_xtal_mux,
+	[1] = &clk_pcmcdclk0,
+	[2] = &clk_sclk_hdmi27m,
+	[3] = &clk_sclk_usbphy0,
+	[4] = &clk_sclk_usbphy1,
+	[5] = &clk_sclk_hdmiphy,
+	[6] = &clk_mout_mpll.clk,
+	[7] = &clk_mout_epll.clk,
+	[8] = &clk_mout_vpll.clk,
+};
+
+static struct clksrc_sources clkset_mout_audio0 = {
+	.sources	= clkset_mout_audio0_list,
+	.nr_sources	= ARRAY_SIZE(clkset_mout_audio0_list),
+};
+
 /* Clock sources for Audio 1 SCLK */
 static struct clk *clkset_mout_audio1_list[] = {
 	[0] = &clk_ext_xtal_mux,
@@ -425,7 +468,7 @@ static struct clksrc_sources clkset_mout_audio1 = {
 /* Clock sources for Audio 2 SCLK */
 static struct clk *clkset_mout_audio2_list[] = {
 	[0] = &clk_ext_xtal_mux,
-	[1] = &clk_pcmcdclk0,
+	[1] = &clk_pcmcdclk2,
 	[2] = &clk_sclk_hdmi27m,
 	[3] = &clk_sclk_usbphy0,
 	[4] = &clk_sclk_usbphy1,
@@ -456,8 +499,8 @@ static struct clksrc_sources clkset_group2 = {
 /* MOUT CAM0 */
 static struct clksrc_clk clk_mout_cam0 = {
 	.clk		= {
-		.name		= "mout_cam",
-		.id		= 0,
+		.name		= "mout_cam0",
+		.id		= -1,
 		.enable		= s5pv210_clk_mask0_ctrl,
 		.ctrlbit	= (1 << 3),
 	},
@@ -468,8 +511,8 @@ static struct clksrc_clk clk_mout_cam0 = {
 /* MOUT CAM1 */
 static struct clksrc_clk clk_mout_cam1 = {
 	.clk		= {
-		.name		= "mout_cam",
-		.id		= 1,
+		.name		= "mout_cam1",
+		.id		= -1,
 		.enable		= s5pv210_clk_mask0_ctrl,
 		.ctrlbit	= (1 << 4),
 	},
@@ -593,7 +636,7 @@ static struct clksrc_clk clk_mout_audio0 = {
 		.enable		= s5pv210_clk_mask0_ctrl,
 		.ctrlbit	= (1 << 24),
 	},
-	.sources	= &clkset_group1,
+	.sources	= &clkset_mout_audio0,
 	.reg_src	= { .reg = S5P_CLK_SRC6, .shift = 0, .size = 4 },
 };
 
@@ -938,15 +981,15 @@ static struct clksrc_clk clksrcs[] = {
 		.reg_src = { .reg = S5P_CLK_SRC1, .shift = 4, .size = 1 },
 	}, {
 		.clk		= {
-			.name		= "sclk_cam",
-			.id		= 0,
+			.name		= "sclk_cam0",
+			.id		= -1,
 			.parent		= &clk_mout_cam0.clk,
 		},
 		.reg_div = { .reg = S5P_CLK_DIV1, .shift = 12, .size = 4 },
 	}, {
 		.clk		= {
-			.name		= "sclk_cam",
-			.id		= 1,
+			.name		= "sclk_cam1",
+			.id		= -1,
 			.parent		= &clk_mout_cam1.clk,
 		},
 		.reg_div = { .reg = S5P_CLK_DIV1, .shift = 16, .size = 4 },
@@ -1117,20 +1160,11 @@ static struct clksrc_clk clksrcs[] = {
 			.ctrlbit	= (1 << 23),
 		},
 		.reg_div = { .reg = S5P_CLK_DIV5, .shift = 12, .size = 4 },
-#if 0
-	}, {
-		.clk		= {
-			.name		= "sclk_ac97",
-			.id		= -1,
-			.parent		= &clk_p,
-			.enable		= s5pv210_clk_ip3_ctrl,
-			.ctrlbit	= (1 << 1),
-		}
-#endif
 	}, {
 		.clk		= {
 			.name		= "sclk_spdif",
-			.id		= -1,
+			.id		= 0,	/* to use sclk_audio0 */
+			.parent		= &clk_sclk_audio0.clk,
 			.enable		= s5pv210_clk_mask0_ctrl,
 			.ctrlbit	= (1 << 27),
 		},
@@ -1161,23 +1195,13 @@ static struct clksrc_clk clksrcs[] = {
 };
 
 static struct clk init_clocks_disable[] = {
-	/* temporary enable all clocks */
-};
-
-static struct clk init_clocks[] = {
-	/* moved from disable clocks */
+	/*Disable: IP0*/
 	{
 		.name		= "csis",
 		.id		= -1,
 		.parent		= &clk_pclk_83.clk,
 		.enable		= s5pv210_clk_ip0_ctrl,
 		.ctrlbit	= (1 << 31),
-	}, {
-		.name		= "ipc",
-		.id		= -1,
-		.parent		= &clk_hclk_166.clk,
-		.enable		= s5pv210_clk_ip0_ctrl,
-		.ctrlbit	= (1 << 30),
 	}, {
 		.name		= "rot",
 		.id		= -1,
@@ -1196,23 +1220,23 @@ static struct clk init_clocks[] = {
 		.ctrlbit	= (1 << 28),
 #endif
 	}, {
-		.name		= "fimc",
-		.id		= 2,
-		.parent		= &clk_hclk_166.clk,
-		.enable		= s5pv210_clk_ip0_ctrl,
-		.ctrlbit	= (1 << 26),
+		.name           = "fimc",
+		.id             = 2,
+		.parent         = &clk_hclk_166.clk,
+		.enable         = s5pv210_clk_ip0_ctrl,
+		.ctrlbit        = (1 << 26),
 	}, {
-		.name		= "fimc",
-		.id		= 1,
-		.parent		= &clk_hclk_166.clk,
-		.enable		= s5pv210_clk_ip0_ctrl,
-		.ctrlbit	= (1 << 25),
+		.name           = "fimc",
+		.id             = 1,
+		.parent         = &clk_hclk_166.clk,
+		.enable         = s5pv210_clk_ip0_ctrl,
+		.ctrlbit        = (1 << 25),
 	}, {
-		.name		= "fimc",
-		.id		= 0,
-		.parent		= &clk_hclk_166.clk,
-		.enable		= s5pv210_clk_ip0_ctrl,
-		.ctrlbit	= (1 << 24),
+		.name           = "fimc",
+		.id             = 0,
+		.parent         = &clk_hclk_166.clk,
+		.enable         = s5pv210_clk_ip0_ctrl,
+		.ctrlbit        = (1 << 24),
 	}, {
 		.name		= "mfc",
 		.id		= -1,
@@ -1225,21 +1249,17 @@ static struct clk init_clocks[] = {
 		.parent		= &clk_hclk_166.clk,
 		.enable		= s5pv210_clk_ip0_ctrl,
 		.ctrlbit	= (1 << 12),
-	}, {
-		.name		= "g3d",
+	},
+#ifdef CONFIG_OLD_DMA_PL330
+	{
+		.name		= "pdma1",
 		.id		= -1,
-		.parent		= &clk_hclk_200.clk,
-		.enable		= s5pv210_clk_ip0_ctrl,
-		.ctrlbit	= (1 << 8),
-	}, {
-		.name		= "pdma",
-		.id		= 1,
 		.parent		= &clk_hclk_133.clk,
 		.enable		= s5pv210_clk_ip0_ctrl,
 		.ctrlbit	= (1 << 4),
 	}, {
-		.name		= "pdma",
-		.id		= 0,
+		.name		= "pdma0",
+		.id		= -1,
 		.parent		= &clk_hclk_133.clk,
 		.enable		= s5pv210_clk_ip0_ctrl,
 		.ctrlbit	= (1 << 3),
@@ -1249,48 +1269,22 @@ static struct clk init_clocks[] = {
 		.parent		= &clk_hclk_166.clk,
 		.enable		= s5pv210_clk_ip0_ctrl,
 		.ctrlbit	= (1 << 2),
-	}, {
+	},
+#endif
+
+	/*Disable: IP1*/
+	{
 		.name		= "nfcon",
 		.id		= -1,
 		.parent		= &clk_hclk_133.clk,
 		.enable		= s5pv210_clk_ip1_ctrl,
 		.ctrlbit	= (1 << 28),
 	}, {
-		.name		= "sromc",
-		.id		= -1,
-		.parent		= &clk_hclk_133.clk,
-		.enable		= s5pv210_clk_ip1_ctrl,
-		.ctrlbit	= (1 << 26),
-	}, {
 		.name		= "cfcon",
 		.id		= 0,
 		.parent		= &clk_hclk_133.clk,
 		.enable		= s5pv210_clk_ip1_ctrl,
 		.ctrlbit	= (1 << 25),
-	}, {
-		.name		= "nandxl",
-		.id		= -1,
-		.parent		= &clk_hclk_133.clk,
-		.enable		= s5pv210_clk_ip1_ctrl,
-		.ctrlbit	= (1 << 24),
-	}, {
-		.name		= "usbhost",
-		.id		= -1,
-		.parent		= &clk_hclk_133.clk,
-		.enable		= s5pv210_clk_ip1_ctrl,
-		.ctrlbit	= (1 << 17),
-	}, {
-		.name		= "usbotg",
-		.id		= -1,
-		.parent		= &clk_hclk_133.clk,
-		.enable		= s5pv210_clk_ip1_ctrl,
-		.ctrlbit	= (1 << 16),
-	}, {
-		.name           = "i2c-hdmiphy",
-		.id             = -1,
-		.parent         = &clk_pclk_66.clk,
-		.enable         = s5pv210_clk_ip3_ctrl,
-		.ctrlbit        = (1 << 11),
 	}, {
 		.name		= "hdmi",
 		.id		= -1,
@@ -1327,43 +1321,74 @@ static struct clk init_clocks[] = {
 		.parent		= &clk_hclk_166.clk,
 		.enable		= s5pv210_clk_ip1_ctrl,
 		.ctrlbit	= (1 << 1),
-	}, {
-		.name		= "fimd",
+	},
+
+
+	/*Disable: IP2*/
+	{
+		.name		= "tzic3",
 		.id		= -1,
-		.parent		= &clk_hclk_166.clk,
-		.enable		= s5pv210_clk_ip1_ctrl,
-		.ctrlbit	= (1 << 0),
-	}, {
-		.name		= "hsmmc",
-		.id		= 3,
-		.parent		= &clk_hclk_133.clk,
+		.parent		= &clk_hclk_200.clk,
 		.enable		= s5pv210_clk_ip2_ctrl,
-		.ctrlbit	= (1 << 19),
+		.ctrlbit	= (1 << 31),
 	}, {
-		.name		= "hsmmc",
-		.id		= 2,
-		.parent		= &clk_hclk_133.clk,
+		.name		= "tzic2",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
 		.enable		= s5pv210_clk_ip2_ctrl,
-		.ctrlbit	= (1 < 18),
+		.ctrlbit	= (1 << 30),
 	}, {
-		.name		= "hsmmc",
-		.id		= 1,
-		.parent		= &clk_hclk_133.clk,
+		.name		= "tzic1",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
 		.enable		= s5pv210_clk_ip2_ctrl,
-		.ctrlbit	= (1 << 17),
+		.ctrlbit	= (1 << 29),
 	}, {
-		.name		= "hsmmc",
-		.id		= 0,
-		.parent		= &clk_hclk_133.clk,
+		.name		= "tzic0",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
 		.enable		= s5pv210_clk_ip2_ctrl,
-		.ctrlbit	= (1 << 16),
+		.ctrlbit	= (1 << 28),
 	}, {
-		.name		= "timers",
+		.name		= "tsi",
 		.id		= -1,
 		.parent		= &clk_pclk_66.clk,
-		.enable		= s5pv210_clk_ip3_ctrl,
-		.ctrlbit	= (1 << 23),
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 20),
 	}, {
+		.name		= "secjtag",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 11),
+	}, {
+		.name		= "hostif",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 10),
+	}, {
+		.name		= "modem",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 9),
+	}, {
+		.name		= "sdm",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 1),
+	}, {
+		.name		= "secss",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 0),
+	},
+
+	/*Disable: IP3*/
+	{
 		.name		= "pcm",
 		.id		= 2,
 		.parent		= &clk_pclk_66.clk,
@@ -1381,18 +1406,12 @@ static struct clk init_clocks[] = {
 		.parent		= &clk_pclk_66.clk,
 		.enable		= s5pv210_clk_ip3_ctrl,
 		.ctrlbit	= (1 << 28),
-	},  {
+	}, {
 		.name		= "adc",
 		.id		= -1,
 		.parent		= &clk_pclk_66.clk,
 		.enable		= s5pv210_clk_ip3_ctrl,
 		.ctrlbit	= (1 << 24),
-	}, {
-		.name		= "pwm",
-		.id		= -1,
-		.parent		= &clk_pclk_66.clk,
-		.enable		= s5pv210_clk_ip3_ctrl,
-		.ctrlbit	= (1 << 23),
 	}, {
 		.name		= "watchdog",
 		.id		= -1,
@@ -1405,18 +1424,6 @@ static struct clk init_clocks[] = {
 		.parent		= &clk_pclk_66.clk,
 		.enable		= s5pv210_clk_ip3_ctrl,
 		.ctrlbit	= (1 << 21),
-	}, {
-		.name		= "systimer",
-		.id		= -1,
-		.parent		= &clk_pclk_66.clk,
-		.enable		= s5pv210_clk_ip3_ctrl,
-		.ctrlbit	= (1 << 16),
-	}, {
-		.name		= "rtc",
-		.id		= -1,
-		.parent		= &clk_pclk_66.clk,
-		.enable		= s5pv210_clk_ip3_ctrl,
-		.ctrlbit	= (1 << 15),
 	}, {
 		.name		= "spi",
 		.id		= 2,
@@ -1436,11 +1443,11 @@ static struct clk init_clocks[] = {
 		.enable		= s5pv210_clk_ip3_ctrl,
 		.ctrlbit	= (1 << 12),
 	}, {
-		.name		= "i2c-hdmiphy",
-		.id		= -1,
-		.parent		= &clk_pclk_83.clk,
-		.enable		= s5pv210_clk_ip3_ctrl,
-		.ctrlbit	= (1 << 11),
+		.name           = "i2c-hdmiphy",
+		.id             = -1,
+		.parent         = &clk_pclk_83.clk,
+		.enable         = s5pv210_clk_ip3_ctrl,
+		.ctrlbit        = (1 << 11),
 	}, {
 		.name		= "i2c",
 		.id		= 1,
@@ -1491,8 +1498,271 @@ static struct clk init_clocks[] = {
 		.ctrlbit	= (1 << 0),
 	},
 
-	/* default enable clocks */
+	/*Disable: IP4*/
 	{
+		.name		= "tzpc",
+		.id		= 0,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip4_ctrl,
+		.ctrlbit	= (1 << 8),
+	}, {
+		.name		= "tzpc",
+		.id		= 1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip4_ctrl,
+		.ctrlbit	= (1 << 7),
+	}, {
+		.name		= "tzpc",
+		.id		= 2,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip4_ctrl,
+		.ctrlbit	= (1 << 6),
+	}, {
+		.name		= "tzpc",
+		.id		= 3,
+		.parent		= &clk_pclk_100.clk,
+		.enable		= s5pv210_clk_ip4_ctrl,
+		.ctrlbit	= (1 << 5),
+	}, {
+		.name		= "seckey",
+		.id		= -1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip4_ctrl,
+		.ctrlbit	= (1 << 3),
+	}, {
+		.name	   	= "iem_apc",
+		.id	     	= -1,
+		.parent	 	= &clk_pclk_66.clk,
+		.enable	 	= s5pv210_clk_ip4_ctrl,
+		.ctrlbit	= (1 << 2),
+	}, {
+		.name	   	= "iem_iec",
+		.id	     	= -1,
+		.parent	 	= &clk_pclk_66.clk,
+		.enable	 	= s5pv210_clk_ip4_ctrl,
+		.ctrlbit	= (1 << 1),
+	},
+};
+
+static struct clk init_clocks[] = {
+	/*Enable: IP0*/
+	{
+		.name		= "ipc",
+		.id		= -1,
+		.parent		= &clk_hclk_166.clk,
+		.enable		= s5pv210_clk_ip0_ctrl,
+		.ctrlbit	= (1 << 30),
+	}, {
+		.name		= "g3d",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
+		.enable		= s5pv210_clk_ip0_ctrl,
+		.ctrlbit	= (1 << 8),
+	}, {
+		.name		= "imem",
+		.id		= -1,
+		.parent		= &clk_pclk_100.clk,
+		.enable		= s5pv210_clk_ip0_ctrl,
+		.ctrlbit	= (1 << 5),
+	}, {
+		.name		= "dmc",
+		.id		= 1,
+		.parent		= &clk_hclk_200.clk,
+		.enable		= s5pv210_clk_ip0_ctrl,
+		.ctrlbit	= (1 << 1),
+	}, {
+		.name		= "dmc",
+		.id		= 0,
+		.parent		= &clk_hclk_200.clk,
+		.enable		= s5pv210_clk_ip0_ctrl,
+		.ctrlbit	= (1 << 0),
+	},
+#ifdef CONFIG_OLD_DMA_PL330
+#else	/* Clk gating is not ready on NEW_DMA_PL330 driver */
+	{
+		.name		= "pdma1",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip0_ctrl,
+		.ctrlbit	= (1 << 4),
+	}, {
+		.name		= "pdma0",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip0_ctrl,
+		.ctrlbit	= (1 << 3),
+	}, {
+		.name		= "mdma",
+		.id		= -1,
+		.parent		= &clk_hclk_166.clk,
+		.enable		= s5pv210_clk_ip0_ctrl,
+		.ctrlbit	= (1 << 2),
+	},
+#endif
+	/*Enable: IP1*/
+	{
+		.name		= "sromc",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip1_ctrl,
+		.ctrlbit	= (1 << 26),
+	}, {
+		.name		= "nandxl",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip1_ctrl,
+		.ctrlbit	= (1 << 24),
+	}, {
+		.name		= "usbhost",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip1_ctrl,
+		.ctrlbit	= (1 << 17),
+	}, {
+		.name		= "usbotg",
+		.id		= -1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip1_ctrl,
+		.ctrlbit	= (1 << 16),
+	}, {
+		.name		= "fimd",
+		.id		= -1,
+		.parent		= &clk_hclk_166.clk,
+		.enable		= s5pv210_clk_ip1_ctrl,
+		.ctrlbit	= (1 << 0),
+	},
+
+	/*Enable: IP2*/
+	{
+		.name		= "vic3",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 27),
+	}, {
+		.name		= "vic2",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 26),
+	}, {
+		.name		= "vic1",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 25),
+	}, {
+		.name		= "vic0",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 24),
+	}, 	{
+		.name		= "hsmmc",
+		.id		= 3,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 19),
+	}, {
+		.name		= "hsmmc",
+		.id		= 2,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 < 18),
+	}, {
+		.name		= "hsmmc",
+		.id		= 1,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 17),
+	}, {
+		.name		= "hsmmc",
+		.id		= 0,
+		.parent		= &clk_hclk_133.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 16),
+	}, {
+		.name		= "coresight",
+		.id		= -1,
+		.parent		= &clk_hclk_200.clk,
+		.enable		= s5pv210_clk_ip2_ctrl,
+		.ctrlbit	= (1 << 16),
+	},
+
+	/*Enable: IP3*/
+	{
+		.name		= "syscon",
+		.id		= -1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 27),
+	}, {
+		.name		= "gpio",
+		.id		= -1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 26),
+	}, {
+		.name		= "timers",
+		.id		= -1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 23),
+	}, {
+		.name		= "pwm",
+		.id		= -1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 23),
+	}, {
+		.name		= "uart",
+		.id		= 3,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 20),
+	}, {
+		.name		= "uart",
+		.id		= 2,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 19),
+	}, {
+		.name		= "uart",
+		.id		= 1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 18),
+	}, {
+		.name		= "uart",
+		.id		= 0,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 17),
+	}, {
+		.name		= "systimer",
+		.id		= -1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 16),
+	}, {
+		.name		= "rtc",
+		.id		= -1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip3_ctrl,
+		.ctrlbit	= (1 << 15),
+	},
+
+	/*Enable: IP4*/
+	{
+		.name		= "chipid",
+		.id		= -1,
+		.parent		= &clk_pclk_66.clk,
+		.enable		= s5pv210_clk_ip4_ctrl,
+		.ctrlbit	= (1 << 0),
+	},
+
+	/* default enable clocks */
+	/*{
 		.name		= "uart",
 		.id		= 0,
 		.parent		= &clk_pclk_66.clk,
@@ -1546,7 +1816,10 @@ static struct clk init_clocks[] = {
 		.parent		= &clk_pclk_66.clk,
 		.enable		= s5pv210_clk_ip4_ctrl,
 		.ctrlbit	= (1 << 0),
-	}, {
+	}, */
+
+	/*Enable: BLOCK*/
+	{
 		.name		= "block_intc",
 		.id		= -1,
 		.enable		= s5pv210_clk_block_ctrl,
@@ -1784,13 +2057,13 @@ static int s5pv210_vpll_set_rate(struct clk *clk, unsigned long rate)
 	default:
 		goto err_on_invalid_rate;
 	}
-	
+
 	__raw_writel(vpll_con, S5P_VPLL_CON);
 
 	clk->rate = rate;
 
 	return 0;
-	
+
 err_on_invalid_rate:
 	return -EINVAL;
 }
@@ -1873,8 +2146,6 @@ void __init_or_cpufreq s5pv210_setup_clocks(void)
 	clk_set_parent(&clk_mout_mmc2.clk, &clk_mout_mpll.clk);
 	clk_set_parent(&clk_mout_mmc3.clk, &clk_mout_mpll.clk);
 
-	clk_set_parent(&clk_mout_audio0.clk, &clk_mout_epll.clk);
-
 	clk_set_rate(&clk_sclk_mmc0.clk, 50*MHZ);
 	clk_set_rate(&clk_sclk_mmc1.clk, 50*MHZ);
 	clk_set_rate(&clk_sclk_mmc2.clk, 50*MHZ);
@@ -1888,6 +2159,7 @@ static struct clk *clks[] __initdata = {
 	&clk_pcmcdclk0,
 	&clk_pcmcdclk1,
 	&clk_i2scdclk0,
+	&clk_spdifextclk,
 };
 
 void __init s5pv210_register_clocks(void)

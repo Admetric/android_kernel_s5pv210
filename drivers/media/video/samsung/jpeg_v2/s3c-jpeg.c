@@ -60,6 +60,11 @@ static int			instanceNo = 0;
 volatile int			jpg_irq_reason;
 wait_queue_head_t 		wait_queue_jpeg;
 
+/* added for jpeg capture */
+/* to save JPEG frame buffer physical address */
+static UINT32	frmbuf_addr;
+static int	get_vaddr = 0;
+
 
 DECLARE_WAIT_QUEUE_HEAD(WaitQueue_JPEG);
 irqreturn_t s3c_jpeg_irq(int irq, void *dev_id, struct pt_regs *regs)
@@ -243,6 +248,11 @@ static int s3c_jpeg_ioctl(struct inode *inode, struct file *file, unsigned int c
 
 		if (param.enc_param->enc_type == JPG_MAIN) {
 			jpg_reg_ctx->jpg_data_addr = (UINT32)jpg_data_base_addr ;
+			/* added for jpeg capture */
+			/* user can set the frame buffer address */
+			if(param.enc_param->set_framebuf == 1)
+				jpg_reg_ctx->img_data_addr = frmbuf_addr;
+			else
 			jpg_reg_ctx->img_data_addr = (UINT32)jpg_data_base_addr
 							+ JPG_STREAM_BUF_SIZE
 							+ JPG_STREAM_THUMB_BUF_SIZE;
@@ -293,6 +303,11 @@ static int s3c_jpeg_ioctl(struct inode *inode, struct file *file, unsigned int c
 		unlock_jpg_mutex();
 		return jpg_data_base_addr + JPG_STREAM_BUF_SIZE
 			+ JPG_STREAM_THUMB_BUF_SIZE + JPG_FRAME_BUF_SIZE;
+	case IOCTL_JPG_SET_FRMBUF://added for jpeg capture
+		jpg_dbg("IOCTL_JPG_SET_FRMBUF\n");
+		printk("\nIOCTL_JPG_SET_FRMBUF\n");
+		frmbuf_addr = arg;
+		break;
 
 	default :
 		jpg_dbg("JPG Invalid ioctl : 0x%X\n", cmd);
@@ -372,6 +387,13 @@ static int s3c_jpeg_probe(struct platform_device *pdev)
 		return -ENOENT;
 	}
 
+	/* pd enable */
+	ret = s5pv210_pd_enable("jpeg_pd");
+	if (ret < 0) {
+		jpg_err("failed to enable jpeg power domain\n");
+		return FALSE;
+	}
+
 	clk_enable(s3c_jpeg_clk);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -438,6 +460,12 @@ static int s3c_jpeg_probe(struct platform_device *pdev)
 
 	/* clock disable */
 	clk_disable(s3c_jpeg_clk);
+	/* pd disable */
+	ret = s5pv210_pd_disable("jpeg_pd");
+	if (ret < 0) {
+		jpg_err("failed to disable jpeg power domain\n");
+		return FALSE;
+	}
 
 	return 0;
 }
@@ -459,13 +487,15 @@ static int s3c_jpeg_remove(struct platform_device *dev)
 static int s3c_jpeg_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	int ret;
-	/* clock disable */
-	clk_disable(s3c_jpeg_clk);
-	
-	ret = s5pv210_pd_disable("jpeg_pd");
-	if (ret < 0) {
-		jpg_err("failed to disable jpeg power domain\n");
-		return FALSE;
+	if (instanceNo != 0) {
+		/* clock disable */
+		clk_disable(s3c_jpeg_clk);
+		/* pd disable */
+		ret = s5pv210_pd_disable("jpeg_pd");
+		if (ret < 0) {
+			jpg_err("failed to disable jpeg power domain\n");
+			return FALSE;
+		}
 	}
 	return 0;
 }
@@ -474,14 +504,17 @@ static int s3c_jpeg_resume(struct platform_device *pdev)
 {
 	int ret;
 	
-	ret = s5pv210_pd_enable("jpeg_pd");
-	if (ret < 0) {
-		jpg_err("failed to enable jpeg power domain\n");
-		return FALSE;
+	if (instanceNo != 0) {
+		/* pd enable */
+		ret = s5pv210_pd_enable("jpeg_pd");
+		if (ret < 0) {
+			jpg_err("failed to enable jpeg power domain\n");
+			return FALSE;
+		}
+
+		/* clock enable */
+		clk_enable(s3c_jpeg_clk);
 	}
-	
-	/* clock enable */
-	clk_enable(s3c_jpeg_clk);
 
 	return 0;
 }

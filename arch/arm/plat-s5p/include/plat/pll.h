@@ -21,6 +21,11 @@
 
 #include <asm/div64.h>
 
+#define APLL_VAL_1664	(1<<31)|(417<<16)|(3<<8)|(0)
+#define APLL_VAL_1332	(1<<31)|(444<<16)|(4<<8)|(0)
+#define APLL_VAL_1000	(1<<31)|(125<<16)|(3<<8)|(1)
+#define APLL_VAL_800	(1<<31)|(100<<16)|(3<<8)|(1)
+
 enum pll45xx_type_t {
 	pll_4500,
 	pll_4502,

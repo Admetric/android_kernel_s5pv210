@@ -5,16 +5,9 @@
 config VIDEO_TV20
 	bool "Samsung TV Driver"
 	depends on VIDEO_SAMSUNG
-	default n
+	default y
 	---help---
 	  This is a TV driver for Samsung S5P platform
-
-config TVOUT_DEBUG
-	bool "TV Driver debug"
-	depends on VIDEO_TV20
-	default n
-	---help---
-	  Enable debug for TV driver
 
 config HDMI_CEC
 	bool "HDMI CEC driver support."

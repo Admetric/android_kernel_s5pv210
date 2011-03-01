@@ -478,6 +478,7 @@ enum s5p_tv_vmx_err __s5p_vm_init_display_mode(enum s5p_tv_disp_mode mode,
 		temp_reg &= ~S5P_MXR_HD;
 		temp_reg &= ~S5P_MXR_PAL;
 		temp_reg |= S5P_MXR_PROGRESSVE_MODE;
+		temp_reg |= RGB601_16_235<<9;
 		break;
 
 	case TVOUT_576P_50_16_9:
@@ -486,6 +487,7 @@ enum s5p_tv_vmx_err __s5p_vm_init_display_mode(enum s5p_tv_disp_mode mode,
 		temp_reg &= ~S5P_MXR_HD;
 		temp_reg |= S5P_MXR_PAL;
 		temp_reg |= S5P_MXR_PROGRESSVE_MODE;
+		temp_reg |= RGB601_16_235<<9;
 		break;
 
 	case TVOUT_720P_50:
@@ -496,6 +498,7 @@ enum s5p_tv_vmx_err __s5p_vm_init_display_mode(enum s5p_tv_disp_mode mode,
 		temp_reg |= S5P_MXR_HD;
 		temp_reg &= ~S5P_MXR_HD_1080I_MODE;
 		temp_reg |= S5P_MXR_PROGRESSVE_MODE;
+		temp_reg |= RGB709_16_235<<9;
 		break;
 
 	case TVOUT_1080I_50:
@@ -506,6 +509,7 @@ enum s5p_tv_vmx_err __s5p_vm_init_display_mode(enum s5p_tv_disp_mode mode,
 		temp_reg |= S5P_MXR_HD;
 		temp_reg |= S5P_MXR_HD_1080I_MODE;
 		temp_reg &= S5P_MXR_INTERLACE_MODE;
+		temp_reg |= RGB709_16_235<<9;
 		break;
 
 	case TVOUT_1080P_50:
@@ -518,6 +522,7 @@ enum s5p_tv_vmx_err __s5p_vm_init_display_mode(enum s5p_tv_disp_mode mode,
 		temp_reg |= S5P_MXR_HD;
 		temp_reg |= S5P_MXR_HD_1080P_MODE;
 		temp_reg |= S5P_MXR_PROGRESSVE_MODE;
+		temp_reg |= RGB709_16_235<<9;
 		break;
 
 	default:
@@ -539,15 +544,14 @@ enum s5p_tv_vmx_err __s5p_vm_init_display_mode(enum s5p_tv_disp_mode mode,
 	case TVOUT_OUTPUT_HDMI_RGB:
 	case TVOUT_OUTPUT_DVI:
 		temp_reg |= S5P_MXR_DST_SEL_HDMI;
-		temp_reg &= ~(0x7<<8);
-		temp_reg |= RGB709_16_235<<9 | MX_RGB888<<8;
-
+		temp_reg &= ~(0x1<<8);
+		temp_reg |= MX_RGB888<<8;
 		break;
 
 	case TVOUT_OUTPUT_HDMI:
 		temp_reg |= S5P_MXR_DST_SEL_HDMI;
-		temp_reg &= ~(0x7<<8);
-		temp_reg |= RGB601_16_235<<9 | MX_YUV444<<8;
+		temp_reg &= ~(0x1<<8);
+		temp_reg |= MX_YUV444<<8;
 		break;
 
 	default:
@@ -581,6 +585,8 @@ u32 grp_scaling_factor(u32 src, u32 dst, u32 h_v)
 	}
 
 	factor = dst / src;
+
+	printk("VMIXER scale factor: x%d\n", factor);
 
 	switch (factor) {
 	case 2:
@@ -1148,7 +1154,7 @@ void __s5p_vm_clear_pend_all(void)
 {
 	writel(S5P_MXR_INT_FIRED | S5P_MXR_VP_INT_FIRED |
 	       S5P_MXR_GRP0_INT_FIRED | S5P_MXR_GRP1_INT_FIRED,
-	       mixer_base + S5P_MXR_INT_EN);
+	       mixer_base + S5P_MXR_INT_STATUS);
 }
 
 irqreturn_t __s5p_mixer_irq(int irq, void *dev_id)
