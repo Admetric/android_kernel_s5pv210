@@ -39,7 +39,7 @@ config S5P_HIGH_RES_TIMERS
         default n
         help
           Support for HRtimer and Dynamic Tick system.
-	  
+
 choice
         prompt "Select HRT source timer"
         depends on S5P_HIGH_RES_TIMERS
@@ -65,31 +65,28 @@ config S5P_DMA_PL330
 choice
 	prompt "Select PL330 DMA Driver"
 	depends on S5P_DMA_PL330
-	
+
 config OLD_DMA_PL330
 	bool "OLD S3C DMA Driver"
 
 config NEW_DMA_PL330
 	bool "NEW S3C DMA Driver"
 	select PL330
-	
+
 endchoice
 
 config S5P_SETUP_I2C0
 	bool
-	default y
 	help
 	  Common setup code for i2c bus 0.
 
 config S5P_SETUP_I2C1
 	bool
-	default y
 	help
 	  Common setup code for i2c bus 1.
 
 config S5P_SETUP_I2C2
 	bool
-	default y
 	help
 	  Common setup code for i2c bus 2.
 
