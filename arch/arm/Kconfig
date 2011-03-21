@@ -656,7 +656,7 @@ config ARCH_S5PV210
 	select HAVE_CLK
 	select ARM_L1_CACHE_SHIFT_6
 	select REGULATOR
-	select REGULATOR_MAX8698
+  # select REGULATOR_MAX8698
 	select ARCH_HAS_CPUFREQ
 	help
 	  Samsung S5PV210/S5PC110 series based systems
