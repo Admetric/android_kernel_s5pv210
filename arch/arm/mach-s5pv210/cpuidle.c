@@ -104,9 +104,15 @@ static struct check_device_op chk_dev_op[] = {
 	{.base = 0, .pdev = &s3c_device_hsmmc2},
 	{.base = 0, .pdev = &s3c_device_hsmmc3},
 	{.base = 0, .pdev = &s3c_device_onenand},
-	{.base = 0, .pdev = &s3c_device_i2c0},
+#ifdef CONFIG_S5P_SETUP_I2C0
+  {.base = 0, .pdev = &s3c_device_i2c0},
+#endif
+#ifdef CONFIG_S5P_SETUP_I2C0
 	{.base = 0, .pdev = &s3c_device_i2c1},
+#endif
+#ifdef CONFIG_S5P_SETUP_I2C0
 	{.base = 0, .pdev = &s3c_device_i2c2},
+#endif
 	{.base = 0, .pdev = NULL},
 };
 

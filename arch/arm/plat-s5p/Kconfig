@@ -76,17 +76,17 @@ config NEW_DMA_PL330
 endchoice
 
 config S5P_SETUP_I2C0
-	bool
+	bool "Enable I2C bus 0"
 	help
 	  Common setup code for i2c bus 0.
 
 config S5P_SETUP_I2C1
-	bool
+	bool "Enable I2C bus 1"
 	help
 	  Common setup code for i2c bus 1.
 
 config S5P_SETUP_I2C2
-	bool
+	bool "Enable I2C bus 2"
 	help
 	  Common setup code for i2c bus 2.
 

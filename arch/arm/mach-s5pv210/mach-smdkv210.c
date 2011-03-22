@@ -1091,9 +1091,15 @@ struct platform_device sec_device_battery = {
 
 static struct platform_device *smdkv210_devices[] __initdata = {
 	/* last enable to support regulator on/off in device driver */
-	&s3c_device_i2c0,
+#ifdef CONFIG_S5P_SETUP_I2C0
+  &s3c_device_i2c0,
+#endif
+#ifdef CONFIG_S5P_SETUP_I2C1
 	&s3c_device_i2c1,
+#endif
+#ifdef CONFIG_S5P_SETUP_I2C2
 	&s3c_device_i2c2,
+#endif
 #ifdef CONFIG_MTD_ONENAND
 	&s3c_device_onenand,
 #endif
@@ -1158,7 +1164,7 @@ static struct platform_device *smdkv210_devices[] __initdata = {
 #ifdef CONFIG_VIDEO_ROTATOR
 	&s5p_device_rotator,
 #endif
-	
+
 #ifdef CONFIG_USB
 	&s3c_device_usb_ehci,
 	&s3c_device_usb_ohci,
@@ -1246,7 +1252,7 @@ int s5pc110_version ;
 void _hw_version_check(void)
 {
 	void __iomem * phy_address ;
-	int temp; 
+	int temp;
 
 	phy_address = ioremap (0x40,1);
 
@@ -1262,7 +1268,7 @@ void _hw_version_check(void)
 		s5pc110_version=1 ;
 	}
 	printk("S5PC110 Hardware version : EVT%d \n",s5pc110_version);
-	
+
 	iounmap(phy_address);
 }
 
@@ -1341,12 +1347,19 @@ static void __init smdkv210_machine_init(void)
 	android_pmem_set_platdata();
 #endif
 	/* i2c */
+
+#ifdef CONFIG_S5P_SETUP_I2C0
 	s3c_i2c0_set_platdata(NULL);
-	s3c_i2c1_set_platdata(NULL);
-	s3c_i2c2_set_platdata(NULL);
 	i2c_register_board_info(0, i2c_devs0, ARRAY_SIZE(i2c_devs0));
+#endif
+#ifdef CONFIG_S5P_SETUP_I2C1
+  s3c_i2c1_set_platdata(NULL);
 	i2c_register_board_info(1, i2c_devs1, ARRAY_SIZE(i2c_devs1));
+#endif
+#ifdef CONFIG_S5P_SETUP_I2C2
+  s3c_i2c2_set_platdata(NULL);
 	i2c_register_board_info(2, i2c_devs2, ARRAY_SIZE(i2c_devs2));
+#endif
 
 	/* to support system shut down */
 	pm_power_off = smdkv210_power_off;
