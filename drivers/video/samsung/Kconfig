@@ -81,7 +81,8 @@ default FB_S3C_LTE480WV
 config FB_S3C_LTE480WV
 	bool "LTE480WV"
 	depends on MACH_SMDKV210 || MACH_SMDKC110
-	select BACKLIGHT_PWM
+  # Making backuplight optional
+  # select BACKLIGHT_PWM
 	help
 	  This enables support for Samsung LTE480WV 4.8\" WVGA LCD panel
 
