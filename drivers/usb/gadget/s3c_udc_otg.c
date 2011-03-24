@@ -1071,15 +1071,23 @@ static int s3c_udc_probe(struct platform_device *pdev)
 
 	DEBUG("%s: %p\n", __FUNCTION__, pdev);
 
+/*
+ * The MXM-V210 does not have the same voltage regulator
+ * as the SMDV210 (code used bellow). For the short term
+ * we'll rely on the bootloader enabling the power on
+ * USB-OTG
+ */
+#if 0
 	/* ldo8 regulator on */
 	printk("\t %s \n", __func__);
+
+
 	usb_dig_regulator = regulator_get(NULL, "vddusb_dig");
 	if (IS_ERR(usb_dig_regulator)) {
 		printk(KERN_ERR "failed to get resource %s\n", "vddusb_dig");
 		return PTR_ERR(usb_dig_regulator);
 	}
 	regulator_enable(usb_dig_regulator);
-
 
 	/* ldo3 regulator on */
 	usb_anlg_regulator = regulator_get(NULL, "vddusb_anlg");
@@ -1089,6 +1097,7 @@ static int s3c_udc_probe(struct platform_device *pdev)
 		return PTR_ERR(usb_anlg_regulator);
 	}
 	regulator_enable(usb_anlg_regulator);
+#endif
 
 	spin_lock_init(&dev->lock);
 	dev->dev = pdev;
@@ -1156,12 +1165,18 @@ static int s3c_udc_remove(struct platform_device *pdev)
 
 	the_controller = 0;
 
+/*
+ * As mention above, power should have been turned on by the
+ * bootloader and should remain that way
+ */
+#if 0
 	/* ldo3 regulator off */
 	regulator_disable(usb_anlg_regulator);
 	regulator_put(usb_anlg_regulator);
 	/* ldo8 regulator off */
 	regulator_disable(usb_dig_regulator);
 	regulator_put(usb_dig_regulator);
+#endif
 	return 0;
 }
 
@@ -1191,10 +1206,16 @@ static int s3c_udc_suspend(struct platform_device *pdev, pm_message_t state)
 		clk_disable(otg_clock);
 	}
 
+/*
+ * As mention above, power should have been turned on by the
+ * bootloader and should remain that way
+ */
+#if 0
 	/* ldo8 regulator off */
 	regulator_disable(usb_anlg_regulator);
 	/* ldo3 regulator off */
 	regulator_disable(usb_dig_regulator);
+#endif
 
 	return 0;
 }
@@ -1203,10 +1224,16 @@ static int s3c_udc_resume(struct platform_device *pdev)
 {
 	struct s3c_udc *dev = the_controller;
 
+/*
+ * As mention above, power should have been turned on by the
+ * bootloader and should remain that way
+ */
+#if 0
 	/* ldo3 regulator on */
 	regulator_enable(usb_dig_regulator);
 	/* ldo8 regulator on */
 	regulator_enable(usb_anlg_regulator);
+#endif
 
 	if (dev->driver) {
 		clk_enable(otg_clock);
