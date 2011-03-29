@@ -1,4 +1,4 @@
-/* linux/drivers/serial/samsuing.c
+/* linux/drivers/serial/samsung.c
  *
  * Driver core for Samsung SoC onboard UARTs.
  *
@@ -23,6 +23,9 @@
  * and change the policy on BREAK
  *
  * BJD, 04-Nov-2004
+ *
+ * added support for RX and TX char for KGDB
+ * Sylvain Huard 29-Mar-2011
 */
 
 #if defined(CONFIG_SERIAL_SAMSUNG_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
@@ -186,6 +189,41 @@ static int s3c24xx_serial_rx_fifocnt(struct s3c24xx_uart_port *ourport,
 
 	return (ufstat & info->rx_fifomask) >> info->rx_fifoshift;
 }
+
+static int
+s3c24xx_serial_console_txrdy(struct uart_port *port, unsigned int ufcon);
+
+/* putchar routine in polling mode. Added to support KGDB */
+static void 
+s3c24xx_serial_putchar(struct uart_port *port, int ch)
+{
+	unsigned int ufcon = rd_regl(port, S3C2410_UFCON);
+	while (!s3c24xx_serial_console_txrdy(port, ufcon));
+	wr_regb(port, S3C2410_UTXH, ch);
+}
+
+/* getchar routine in polling mode. Added to support KGDB */
+static int s3c24xx_serial_getchar(struct uart_port *port)
+{
+	unsigned long ufstat, utrstat;
+	unsigned int ufcon = rd_regl(port, S3C2410_UFCON);
+	
+	if (ufcon & S3C2410_UFCON_FIFOMODE) {
+		/* fifo mode - check ammount of data in fifo registers... */
+		do {
+			ufstat = rd_regl(port, S3C2410_UFSTAT);
+		} while (!(ufstat & S3C2410_UFSTAT_RXMASK));
+		/* blocked until there is data in the fifo */
+	} else {
+		/* non fifo mode - check just the rx buffer register */
+		do {
+			utrstat = rd_regl(port, S3C2410_UTRSTAT);
+		} while (!(utrstat & S3C2410_UTRSTAT_RXDR));
+		/* blocked until there is data in the RX register */
+	}
+	return (rd_regb(port, S3C2410_URXH));
+}
+
 
 
 /* ? - where has parity gone?? */
@@ -873,6 +911,8 @@ static struct uart_ops s3c24xx_serial_ops = {
 	.request_port	= s3c24xx_serial_request_port,
 	.config_port	= s3c24xx_serial_config_port,
 	.verify_port	= s3c24xx_serial_verify_port,
+	.poll_put_char  = s3c24xx_serial_putchar,
+	.poll_get_char	= s3c24xx_serial_getchar,
 };
 
 
@@ -1291,6 +1331,7 @@ s3c24xx_serial_console_putchar(struct uart_port *port, int ch)
 		barrier();
 	wr_regb(cons_uart, S3C2410_UTXH, ch);
 }
+
 
 static void
 s3c24xx_serial_console_write(struct console *co, const char *s,
