@@ -194,7 +194,7 @@ static int
 s3c24xx_serial_console_txrdy(struct uart_port *port, unsigned int ufcon);
 
 /* putchar routine in polling mode. Added to support KGDB */
-static void 
+static void
 s3c24xx_serial_putchar(struct uart_port *port, int ch)
 {
 	unsigned int ufcon = rd_regl(port, S3C2410_UFCON);
@@ -207,7 +207,7 @@ static int s3c24xx_serial_getchar(struct uart_port *port)
 {
 	unsigned long ufstat, utrstat;
 	unsigned int ufcon = rd_regl(port, S3C2410_UFCON);
-	
+
 	if (ufcon & S3C2410_UFCON_FIFOMODE) {
 		/* fifo mode - check ammount of data in fifo registers... */
 		do {
@@ -918,7 +918,8 @@ static struct uart_ops s3c24xx_serial_ops = {
 
 static struct uart_driver s3c24xx_uart_drv = {
 	.owner		= THIS_MODULE,
-	.dev_name	= "s3c2410_serial",
+	//.dev_name	= "s3c2410_serial",
+  .dev_name = "ttySAC",
 	.nr		= CONFIG_SERIAL_SAMSUNG_UARTS,
 	.cons		= S3C24XX_SERIAL_CONSOLE,
 	.driver_name	= S3C24XX_SERIAL_NAME,
@@ -1145,7 +1146,7 @@ static int s3c24xx_serial_init_port(struct s3c24xx_uart_port *ourport,
 		ourport->rx_irq = ret;
 		ourport->tx_irq = ret + 1;
 	}
-	
+
 	ret = platform_get_irq(platdev, 1);
 	if (ret > 0)
 		ourport->tx_irq = ret;
