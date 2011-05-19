@@ -911,8 +911,10 @@ static struct uart_ops s3c24xx_serial_ops = {
 	.request_port	= s3c24xx_serial_request_port,
 	.config_port	= s3c24xx_serial_config_port,
 	.verify_port	= s3c24xx_serial_verify_port,
+#ifdef CONFIG_CONSOLE_POLL
 	.poll_put_char  = s3c24xx_serial_putchar,
 	.poll_get_char	= s3c24xx_serial_getchar,
+#endif
 };
 
 
